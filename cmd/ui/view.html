@@ -29,7 +29,7 @@
     }
     ::selection { background: #b7ddd0; color: var(--ink); }
     :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-    button, input { font: inherit; color: inherit; }
+    button, input, select { font: inherit; color: inherit; }
     header {
       display: flex;
       justify-content: space-between;
@@ -44,103 +44,93 @@
       letter-spacing: -0.03em;
       line-height: 1.1;
     }
-    #filemeta {
-      margin: 0.35rem 0 0;
-      max-width: 70ch;
-      color: var(--muted);
-    }
-    .layout {
-      display: grid;
-      grid-template-columns: 16rem minmax(0, 1fr);
-      gap: 1rem;
-      padding: 0.5rem 1.5rem 1.5rem;
-      min-height: calc(100vh - 6.5rem);
-    }
-    nav, main {
+    #filemeta { margin: 0.35rem 0 0; max-width: 70ch; color: var(--muted); }
+    #home, .layout { padding: 0.5rem 1.5rem 1.5rem; }
+    #home { max-width: 40rem; }
+    .panel, nav, main {
       background: var(--paper);
       border: 1px solid var(--line);
       border-radius: 2px;
     }
-    nav { padding: 0.75rem; }
-    nav h2, main h2 {
-      margin: 0 0 0.75rem;
-      font-size: 0.95rem;
-      font-weight: 650;
+    .panel, nav, main { padding: 0.9rem 1rem 1rem; }
+    h2 { margin: 0 0 0.75rem; font-size: 0.95rem; font-weight: 650; }
+    .layout {
+      display: grid;
+      grid-template-columns: 18rem minmax(0, 1fr);
+      gap: 1rem;
+      min-height: calc(100vh - 6.5rem);
     }
-    #tables { display: flex; flex-direction: column; gap: 0.35rem; }
-    .table-button, .page-button, #run {
+    form.row, .column-line, .value-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      align-items: center;
+      margin-bottom: 0.6rem;
+    }
+    input, select {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 2px;
+      padding: 0.45rem 0.55rem;
+      min-width: 0;
+    }
+    input[type="text"], input:not([type]) { flex: 1; }
+    button {
       border: 1px solid var(--line);
       background: transparent;
       border-radius: 2px;
+      padding: 0.45rem 0.7rem;
       cursor: pointer;
     }
-    .table-button {
-      text-align: left;
-      padding: 0.55rem 0.65rem;
+    button.primary, #back {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-ink);
     }
-    .table-button strong { display: block; }
-    .table-button span { color: var(--muted); font-size: 0.85rem; }
-    .table-button[aria-current="true"] {
+    button:disabled { opacity: 0.55; cursor: wait; }
+    button:hover { border-color: var(--accent); }
+    #dblist, #tables { display: flex; flex-direction: column; gap: 0.35rem; }
+    .table-button, .page-button { text-align: left; }
+    .table-button strong, .db-button { display: block; }
+    .table-button span, .page-button small { color: var(--muted); font-size: 0.85rem; }
+    .table-button[aria-current="true"], .db-button[aria-current="true"] {
       background: var(--accent);
       border-color: var(--accent);
       color: var(--accent-ink);
     }
     .table-button[aria-current="true"] span { color: var(--accent-ink); }
-    .table-button:hover, .page-button:hover, #run:hover { border-color: var(--accent); }
-    main { padding: 0.9rem 1rem 1rem; min-width: 0; }
-    #pages {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.35rem;
-      margin-bottom: 1rem;
-    }
-    .page-button {
-      min-width: 4.5rem;
-      padding: 0.35rem 0.45rem;
-      text-align: left;
-      font-variant-numeric: tabular-nums;
-    }
-    .page-button small { display: block; color: var(--muted); font-size: 0.75rem; }
-    .page-button.mark {
-      background: #d5ebe3;
-      border-color: var(--accent);
-    }
+    .db-button { width: 100%; text-align: left; padding: 0.7rem 0.75rem; }
+    #pages { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 1rem; }
+    .page-button { min-width: 4.5rem; font-variant-numeric: tabular-nums; }
+    .page-button small { display: block; font-size: 0.75rem; }
+    .page-button.mark { background: #d5ebe3; border-color: var(--accent); }
     .scroll { overflow: auto; max-height: 22rem; }
     table { border-collapse: collapse; width: max-content; max-width: 100%; }
     th, td {
       padding: 0.4rem 0.7rem;
       border-bottom: 1px solid var(--line);
       text-align: left;
-      vertical-align: top;
+      vertical-align: middle;
       white-space: nowrap;
     }
     th { font-weight: 650; position: sticky; top: 0; background: var(--paper); }
     td.num { font-variant-numeric: tabular-nums; }
     td.nil { color: var(--muted); }
+    td.actions { white-space: nowrap; }
     #note, #status { margin: 0.75rem 0 0; color: var(--muted); }
     #status.error { color: var(--warn); background: var(--warn-ground); padding: 0.45rem 0.6rem; }
-    form {
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-      margin-top: 1rem;
-    }
-    label { color: var(--muted); }
-    input {
-      flex: 1;
-      min-width: 0;
-      background: var(--paper);
+    fieldset {
       border: 1px solid var(--line);
-      border-radius: 2px;
-      padding: 0.5rem 0.6rem;
+      margin: 0 0 1rem;
+      padding: 0.7rem;
     }
-    #run {
-      background: var(--accent);
-      color: var(--accent-ink);
-      border-color: var(--accent);
-      padding: 0.5rem 0.9rem;
-    }
-    #run:disabled { opacity: 0.55; cursor: wait; }
+    legend { padding: 0 0.3rem; font-weight: 650; }
+    .nullbox { display: flex; gap: 0.3rem; align-items: center; color: var(--muted); }
+    #addrow { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: end; margin-bottom: 0.8rem; }
+    #addrow > span:first-child { flex-basis: 100%; font-weight: 650; color: var(--ink); }
+    #addrow[hidden] { display: none; }
+    .field { display: flex; flex-direction: column; gap: 0.25rem; min-width: 8rem; }
+    .field > span { font-size: 0.78rem; color: var(--muted); }
     #grid.reveal { animation: open 180ms cubic-bezier(0.16, 1, 0.3, 1); }
     @keyframes open {
       from { clip-path: inset(0 0 100% 0); }
@@ -154,10 +144,9 @@
     @media (max-width: 700px) {
       header { flex-direction: column; align-items: start; }
       .layout { grid-template-columns: 1fr; }
-      #tables { flex-direction: row; overflow-x: auto; }
-      .table-button { min-width: 9rem; }
-      form { flex-wrap: wrap; }
-      input { flex-basis: 100%; }
+      main { order: -1; }
+      #tables, #dblist { flex-direction: row; overflow-x: auto; }
+      .table-button, .db-button { min-width: 9rem; }
     }
   </style>
 </head>
@@ -165,24 +154,52 @@
   <header>
     <div>
       <h1 id="filename">ForgeDB</h1>
-      <p id="filemeta">Reading the file…</p>
+      <p id="filemeta">Choose a database or create one.</p>
     </div>
+    <button id="back" type="button" hidden>All databases</button>
   </header>
-  <div class="layout">
+  <section id="home">
+    <form id="newdb" class="row">
+      <label for="dbname">New database</label>
+      <input id="dbname" name="name" required autocomplete="off" placeholder="shop">
+      <button class="primary" type="submit">Create</button>
+    </form>
+    <div class="panel">
+      <h2>Databases</h2>
+      <div id="dblist"></div>
+    </div>
+    <p id="homestatus" role="status"></p>
+  </section>
+  <div class="layout" id="workspace" hidden>
     <nav>
       <h2>Tables</h2>
       <div id="tables"></div>
+      <form id="newtable">
+        <fieldset>
+          <legend>New table</legend>
+          <div class="row">
+            <label for="tablename">Name</label>
+            <input id="tablename" required autocomplete="off" placeholder="account">
+          </div>
+          <div id="coldefs"></div>
+          <div class="row">
+            <button type="button" id="addcol">Add column</button>
+            <button class="primary" type="submit">Create table</button>
+          </div>
+        </fieldset>
+      </form>
     </nav>
     <main>
       <div id="pages"></div>
       <h2 id="title">Rows</h2>
+      <form id="addrow" hidden></form>
       <div class="scroll">
         <table id="grid"></table>
       </div>
       <p id="note"></p>
-      <form id="stmt">
+      <form id="stmt" class="row">
         <label for="sql">Statement</label>
-        <input id="sql" name="sql" autocomplete="off" spellcheck="false" placeholder="SELECT * FROM account">
+        <input id="sql" autocomplete="off" spellcheck="false" placeholder="SELECT * FROM account">
         <button id="run" type="submit">Run</button>
       </form>
       <p id="status" role="status"></p>
@@ -191,50 +208,26 @@
   <script>
     const filename = document.querySelector("#filename");
     const filemeta = document.querySelector("#filemeta");
+    const home = document.querySelector("#home");
+    const workspace = document.querySelector("#workspace");
+    const back = document.querySelector("#back");
+    const dblist = document.querySelector("#dblist");
+    const homestatus = document.querySelector("#homestatus");
     const tablesEl = document.querySelector("#tables");
     const pagesEl = document.querySelector("#pages");
     const title = document.querySelector("#title");
     const grid = document.querySelector("#grid");
     const note = document.querySelector("#note");
     const status = document.querySelector("#status");
-    const form = document.querySelector("#stmt");
-    const sql = document.querySelector("#sql");
-    const run = document.querySelector("#run");
+    const addrow = document.querySelector("#addrow");
+    const coldefs = document.querySelector("#coldefs");
     let snap = null;
     let selected = "";
-    let statementRows = false;
+    let editing = -1;
 
-    function setStatus(text, isError) {
-      status.textContent = text || "";
-      status.classList.toggle("error", Boolean(isError));
-    }
-
-    function rowCount(n) {
-      return n === 1 ? "1 row" : n + " rows";
-    }
-
-    function cellText(value) {
-      if (value === null || value === undefined) return "NULL";
-      return String(value);
-    }
-
-    function showRows(columns, rows, heading, extra) {
-      title.textContent = heading;
-      note.textContent = extra || "";
-      const head = columns.map((name) => "<th>" + escapeHTML(name) + "</th>").join("");
-      const body = rows.map((row) => {
-        const cells = row.map((value) => {
-          const nil = value === null || value === undefined;
-          const num = typeof value === "number";
-          const cls = nil ? "nil" : (num ? "num" : "");
-          return "<td class=\"" + cls + "\">" + escapeHTML(cellText(value)) + "</td>";
-        }).join("");
-        return "<tr>" + cells + "</tr>";
-      }).join("");
-      grid.innerHTML = "<thead><tr>" + head + "</tr></thead><tbody>" + body + "</tbody>";
-      grid.classList.remove("reveal");
-      void grid.offsetWidth;
-      grid.classList.add("reveal");
+    function setStatus(node, text, isError) {
+      node.textContent = text || "";
+      node.classList.toggle("error", Boolean(isError));
     }
 
     function escapeHTML(text) {
@@ -243,122 +236,388 @@
       }[ch]));
     }
 
-    function renderSnap() {
-      const base = snap.path.split(/[\\/]/).pop();
-      filename.textContent = base || "ForgeDB";
-      document.title = base || "ForgeDB";
-      const free = snap.freeHead === 0 ? "no free pages" : "free list starts at page " + snap.freeHead;
-      filemeta.textContent = snap.path + " · " + snap.pageSize + "-byte pages · " +
-        snap.pageCount + " pages · " + free + " · next log sequence " + snap.nextLSN +
-        " · log " + snap.walBytes + " bytes";
-      tablesEl.replaceChildren();
-      if (!snap.tables || snap.tables.length === 0) {
+    function rowCount(n) {
+      return n === 1 ? "1 row" : n + " rows";
+    }
+
+    async function api(url, options) {
+      const res = await fetch(url, options);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "The request failed");
+      return body;
+    }
+
+    function showHome(lib) {
+      home.hidden = false;
+      workspace.hidden = true;
+      back.hidden = true;
+      filename.textContent = "ForgeDB";
+      document.title = "ForgeDB";
+      filemeta.textContent = lib.dir;
+      dblist.replaceChildren();
+      if (!lib.names || lib.names.length === 0) {
         const empty = document.createElement("p");
-        empty.id = "note";
-        empty.textContent = "This file has no tables.";
-        tablesEl.append(empty);
+        empty.textContent = "No databases in this folder yet.";
+        dblist.append(empty);
+        return;
       }
-      for (const table of snap.tables || []) {
+      for (const name of lib.names) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "db-button";
+        button.textContent = name;
+        button.addEventListener("click", () => useDatabase(name));
+        dblist.append(button);
+      }
+    }
+
+    async function loadHome() {
+      const lib = await api("/api/databases");
+      if (lib.current) {
+        await showDatabase();
+        return;
+      }
+      showHome(lib);
+    }
+
+    async function useDatabase(name) {
+      setStatus(homestatus, "", false);
+      try {
+        await api("/api/open", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name })
+        });
+        selected = "";
+        await showDatabase();
+      } catch (err) {
+        setStatus(homestatus, err.message, true);
+      }
+    }
+
+    document.querySelector("#newdb").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const name = document.querySelector("#dbname").value.trim();
+      setStatus(homestatus, "", false);
+      try {
+        await api("/api/databases", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name })
+        });
+        document.querySelector("#dbname").value = "";
+        selected = "";
+        await showDatabase();
+      } catch (err) {
+        setStatus(homestatus, err.message, true);
+      }
+    });
+
+    back.addEventListener("click", async () => {
+      await api("/api/close", { method: "POST" });
+      showHome(await api("/api/databases"));
+    });
+
+    async function showDatabase() {
+      home.hidden = true;
+      workspace.hidden = false;
+      back.hidden = false;
+      snap = await api("/api/inspect");
+      if (!snap.tables) snap.tables = [];
+      const base = snap.path.split(/[\\/]/).pop().replace(/\.db$/, "");
+      filename.textContent = base;
+      document.title = base;
+      const free = snap.freeHead === 0 ? "no free pages" : "free list starts at page " + snap.freeHead;
+      filemeta.textContent = snap.pageCount + " pages · " + free + " · next log sequence " + snap.nextLSN;
+      if (selected && !snap.tables.some((table) => table.name === selected)) selected = "";
+      if (!selected && snap.tables.length > 0) selected = snap.tables[0].name;
+      renderTables();
+      renderPages();
+      if (selected) await openTable(selected);
+      else {
+        addrow.hidden = true;
+        title.textContent = "Rows";
+        grid.innerHTML = "";
+        note.textContent = "Create a table, then add rows to it.";
+      }
+    }
+
+    function renderTables() {
+      tablesEl.replaceChildren();
+      for (const table of snap.tables) {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "table-button";
-        button.innerHTML = "<strong>" + escapeHTML(table.name) + "</strong><span>" +
-          escapeHTML(table.primaryKey) + " key</span>";
+        button.innerHTML = "<strong>" + escapeHTML(table.name) + "</strong><span>" + escapeHTML(table.primaryKey) + " key</span>";
         if (table.name === selected) button.setAttribute("aria-current", "true");
         button.addEventListener("click", () => openTable(table.name));
         tablesEl.append(button);
       }
+    }
+
+    function renderPages() {
       pagesEl.replaceChildren();
-      const current = (snap.tables || []).find((table) => table.name === selected);
+      const current = snap.tables.find((table) => table.name === selected);
       for (const page of snap.pages || []) {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "page-button";
-        if (current && (page.id === current.header || page.id === current.index)) {
-          button.classList.add("mark");
-        }
+        if (current && (page.id === current.header || page.id === current.index)) button.classList.add("mark");
         button.innerHTML = "<strong>" + page.id + "</strong><small>" + escapeHTML(page.kind) + "</small>";
-        button.title = "Page " + page.id + ", " + page.kind + ", log sequence " + page.lsn;
+        button.title = "Page " + page.id + ", " + page.kind;
         button.addEventListener("click", () => {
-          const owner = (snap.tables || []).find((table) => table.header === page.id || table.index === page.id);
+          const owner = snap.tables.find((table) => table.header === page.id || table.index === page.id);
           if (owner) openTable(owner.name);
         });
         pagesEl.append(button);
       }
-      if (snap.truncated) {
-        const more = document.createElement("p");
-        more.textContent = "Showing the first " + snap.pages.length + " pages.";
-        pagesEl.append(more);
-      }
     }
 
-    async function loadSnap() {
-      const res = await fetch("/api/inspect");
-      if (!res.ok) throw new Error(await res.text());
-      snap = await res.json();
-      if (!snap.tables) snap.tables = [];
-      if (selected && !snap.tables.some((table) => table.name === selected)) selected = "";
-      if (!selected && snap.tables.length > 0 && !statementRows) selected = snap.tables[0].name;
-      renderSnap();
+    function columnLine(name, type, primary) {
+      const line = document.createElement("div");
+      line.className = "column-line";
+      line.innerHTML =
+        '<input class="colname" required autocomplete="off" value="' + escapeHTML(name) + '" aria-label="Column name">' +
+        '<select class="coltype" aria-label="Column type"><option>INTEGER</option><option>TEXT</option></select>' +
+        '<label class="nullbox"><input class="colpk" type="radio" name="pk"' + (primary ? " checked" : "") + "> Key</label>";
+      line.querySelector(".coltype").value = type;
+      return line;
+    }
+
+    function resetColumns() {
+      coldefs.replaceChildren(columnLine("id", "INTEGER", true), columnLine("name", "TEXT", false));
+    }
+    resetColumns();
+    document.querySelector("#addcol").addEventListener("click", () => {
+      coldefs.append(columnLine("", "TEXT", false));
+    });
+
+    document.querySelector("#newtable").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const columns = [...coldefs.querySelectorAll(".column-line")].map((line) => ({
+        name: line.querySelector(".colname").value.trim(),
+        type: line.querySelector(".coltype").value,
+        primary: line.querySelector(".colpk").checked
+      }));
+      try {
+        const name = document.querySelector("#tablename").value.trim();
+        await api("/api/tables", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, columns })
+        });
+        document.querySelector("#tablename").value = "";
+        resetColumns();
+        selected = name;
+        setStatus(status, "Created " + name, false);
+        await showDatabase();
+      } catch (err) {
+        setStatus(status, err.message, true);
+      }
+    });
+
+    function valueControl(col, value) {
+      const wrap = document.createElement("div");
+      wrap.className = "field";
+      const name = document.createElement("span");
+      name.textContent = col.name;
+      const input = document.createElement("input");
+      input.autocomplete = "off";
+      input.placeholder = col.name;
+      input.setAttribute("aria-label", col.name);
+      input.dataset.type = col.type;
+      input.value = value === null || value === undefined ? "" : String(value);
+      wrap.append(name, input);
+      if (!col.primary) {
+        const box = document.createElement("label");
+        box.className = "nullbox";
+        const nil = document.createElement("input");
+        nil.type = "checkbox";
+        nil.className = "isnull";
+        nil.checked = arguments.length > 1 && value === null;
+        const text = document.createElement("span");
+        text.textContent = "Null";
+        box.append(nil, text);
+        wrap.append(box);
+      }
+      return wrap;
+    }
+
+    function readValues(form) {
+      return valuesFrom(form);
+    }
+
+    function buildAddForm(table) {
+      addrow.hidden = false;
+      addrow.replaceChildren();
+      const legend = document.createElement("span");
+      legend.textContent = "Add a row";
+      addrow.append(legend);
+      for (const col of table.columns) addrow.append(valueControl(col));
+      const button = document.createElement("button");
+      button.className = "primary";
+      button.type = "submit";
+      button.textContent = "Add row";
+      addrow.append(button);
     }
 
     async function openTable(name) {
-      statementRows = false;
+      editing = -1;
       selected = name;
-      renderSnap();
-      const res = await fetch("/api/rows?table=" + encodeURIComponent(name));
-      const body = await res.json();
-      if (!res.ok) {
-        setStatus(body.error || "Could not read " + name, true);
-        return;
-      }
-      setStatus("");
-      const extra = body.rows.length === 200 ? "Showing the first 200 rows." : rowCount(body.rows.length);
-      showRows(body.columns, body.rows, name, extra);
+      snap = await api("/api/inspect");
+      if (!snap.tables) snap.tables = [];
+      const free = snap.freeHead === 0 ? "no free pages" : "free list starts at page " + snap.freeHead;
+      filemeta.textContent = snap.pageCount + " pages · " + free + " · next log sequence " + snap.nextLSN;
+      renderTables();
+      renderPages();
+      const body = await api("/api/rows?table=" + encodeURIComponent(name));
+      const table = snap.tables.find((item) => item.name === name);
+      title.textContent = name;
+      note.textContent = body.rows.length === 200 ? "Showing the first 200 rows." : rowCount(body.rows.length);
+      buildAddForm(table);
+      drawRows(table, body.rows);
+      setStatus(status, "", false);
     }
 
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const statement = sql.value.trim();
-      if (!statement) return;
-      run.disabled = true;
-      setStatus("Running…", false);
+    function drawRows(table, rows) {
+      const head = table.columns.map((col) => "<th>" + escapeHTML(col.name) + "</th>").join("") + "<th></th>";
+      const body = rows.map((row, index) => {
+        if (editing === index) return editRow(table, row, index);
+        const cells = row.map((value, i) => {
+          const nil = value === null || value === undefined;
+          const cls = nil ? "nil" : (table.columns[i].type === "INTEGER" ? "num" : "");
+          return "<td class=\"" + cls + "\">" + escapeHTML(nil ? "NULL" : String(value)) + "</td>";
+        }).join("");
+        return "<tr data-row=\"" + index + "\">" + cells +
+          "<td class=\"actions\"><button type=\"button\" data-edit=\"" + index + "\">Edit</button> <button type=\"button\" data-delete=\"" + index + "\">Delete</button></td></tr>";
+      }).join("");
+      grid.innerHTML = "<thead><tr>" + head + "</tr></thead><tbody>" + body + "</tbody>";
+      grid.querySelectorAll("[data-edit]").forEach((button) => {
+        button.addEventListener("click", () => {
+          editing = Number(button.dataset.edit);
+          drawRows(table, rows);
+        });
+      });
+      grid.querySelectorAll("[data-delete]").forEach((button) => {
+        button.addEventListener("click", () => removeRow(table, rows[Number(button.dataset.delete)]));
+      });
+      const save = grid.querySelector("[data-save]");
+      if (save) {
+        save.addEventListener("click", () => saveRow(table, rows[editing], valuesFrom(save.closest("tr"))));
+        grid.querySelector("[data-cancel]").addEventListener("click", () => {
+          editing = -1;
+          drawRows(table, rows);
+        });
+      }
+    }
+
+    function editRow(table, row) {
+      const cells = table.columns.map((col, i) => {
+        const value = row[i];
+        const nil = value === null || value === undefined;
+        const box = col.primary ? "" : '<label class="nullbox"><input class="isnull" type="checkbox"' + (nil ? " checked" : "") + "> Null</label>";
+        return "<td><input data-type=\"" + col.type + "\" value=\"" + escapeHTML(nil ? "" : String(value)) + "\" aria-label=\"" + escapeHTML(col.name) + "\">" + box + "</td>";
+      }).join("");
+      return "<tr class=\"editing\">" + cells + "<td class=\"actions\"><button type=\"button\" data-save>Save</button> <button type=\"button\" data-cancel>Cancel</button></td></tr>";
+    }
+
+    function valuesFrom(root) {
+      return [...root.querySelectorAll("input[data-type]")].map((input) => {
+        const nil = input.parentElement.querySelector(".isnull");
+        if (nil && nil.checked) return { null: true };
+        if (input.dataset.type === "INTEGER") {
+          if (input.value.trim() === "") return { null: true };
+          return { int: Number(input.value) };
+        }
+        return { text: input.value };
+      });
+    }
+
+    function keyLiteral(table, value) {
+      const pk = table.columns.find((col) => col.primary);
+      if (pk.type === "INTEGER") return { int: Number(value) };
+      return { text: String(value) };
+    }
+
+    async function saveRow(table, row, values) {
+      const pk = table.columns.findIndex((col) => col.primary);
       try {
-        const res = await fetch("/api/exec", {
+        await api("/api/rows/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ table: table.name, key: keyLiteral(table, row[pk]), values })
+        });
+        editing = -1;
+        await openTable(table.name);
+        setStatus(status, "Saved the row", false);
+      } catch (err) {
+        setStatus(status, err.message, true);
+      }
+    }
+
+    async function removeRow(table, row) {
+      const pk = table.columns.findIndex((col) => col.primary);
+      if (!window.confirm("Delete this row?")) return;
+      try {
+        await api("/api/rows/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ table: table.name, key: keyLiteral(table, row[pk]) })
+        });
+        await openTable(table.name);
+        setStatus(status, "Deleted the row", false);
+      } catch (err) {
+        setStatus(status, err.message, true);
+      }
+    }
+
+    addrow.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const table = snap.tables.find((item) => item.name === selected);
+      try {
+        await api("/api/rows", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ table: table.name, values: readValues(addrow) })
+        });
+        await openTable(table.name);
+        setStatus(status, "Added the row", false);
+      } catch (err) {
+        setStatus(status, err.message, true);
+      }
+    });
+
+    document.querySelector("#stmt").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const statement = document.querySelector("#sql").value.trim();
+      if (!statement) return;
+      const run = document.querySelector("#run");
+      run.disabled = true;
+      try {
+        const body = await api("/api/exec", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ statement })
         });
-        const body = await res.json();
-        if (!res.ok) {
-          setStatus(body.error || "The statement failed", true);
-          return;
-        }
-        statementRows = Array.isArray(body.columns);
-        await loadSnap();
-        if (statementRows) {
-          selected = "";
-          renderSnap();
-          showRows(body.columns, body.rows, "Statement result", rowCount(body.rows.length));
-          setStatus("");
+        await showDatabase();
+        if (Array.isArray(body.columns)) {
+          title.textContent = "Statement result";
+          note.textContent = rowCount(body.rows.length);
+          const head = body.columns.map((name) => "<th>" + escapeHTML(name) + "</th>").join("");
+          const rows = body.rows.map((row) => "<tr>" + row.map((value) => "<td>" + escapeHTML(value === null ? "NULL" : String(value)) + "</td>").join("") + "</tr>").join("");
+          grid.innerHTML = "<thead><tr>" + head + "</tr></thead><tbody>" + rows + "</tbody>";
+          addrow.hidden = true;
         } else {
-          const changed = "changed " + body.changed;
-          if (selected) await openTable(selected);
-          else if (snap.tables.length > 0) await openTable(snap.tables[0].name);
-          else showRows([], [], "Rows", "This file has no tables. Run CREATE TABLE to add one.");
-          setStatus(changed, false);
+          setStatus(status, "changed " + body.changed, false);
         }
       } catch (err) {
-        setStatus(String(err), true);
+        setStatus(status, err.message, true);
       } finally {
         run.disabled = false;
       }
     });
 
-    loadSnap().then(() => {
-      if (selected) return openTable(selected);
-      showRows([], [], "Rows", "This file has no tables. Run CREATE TABLE to add one.");
-    }).catch((err) => setStatus(String(err), true));
+    loadHome().catch((err) => setStatus(homestatus, err.message, true));
   </script>
 </body>
 </html>

@@ -20,4 +20,4 @@ v1 keeps a transaction's pages private until commit. Commit appends those page i
 | SQL | `CREATE TABLE`, `INSERT`, `SELECT`, `UPDATE`, and `DELETE` use literal values. One column is the primary key. A comparison with NULL is not true. A statement outside `BEGIN` commits on success and rolls back on failure. |
 | Lock | Many queries run together. One writer waits until they finish, then keeps the lock until commit or rollback. A failed statement ends that transaction and releases the writer. |
 | Shell | `cmd/shell` runs one statement per line. A query prints rows. Any other statement prints how many rows changed. |
-| Viewer | `cmd/ui` shows the pages, tables, and rows of one open file, and runs one statement from the page. |
+| Page | `cmd/ui` creates database files, tables, and rows, and can still run one statement. |

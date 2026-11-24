@@ -1,4 +1,4 @@
-// Command ui serves a page that shows one ForgeDB file.
+// Command ui serves a page for creating and editing ForgeDB files.
 package main
 
 import (
@@ -6,11 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 
@@ -23,96 +27,520 @@ var page embed.FS
 func main() {
 	log.SetFlags(0)
 	addr := flag.String("addr", "127.0.0.1:8091", "listen address")
-	path := flag.String("db", "", "database file")
+	dir := flag.String("dir", ".", "folder that holds database files")
+	dbFlag := flag.String("db", "", "database file to open")
 	flag.Parse()
-	if *path == "" {
-		fmt.Fprintln(os.Stderr, "usage: ui -db file")
-		os.Exit(2)
-	}
-	db, err := openDB(*path)
+	lib, err := newLibrary(*dir, *dbFlag)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
-	srv := &http.Server{Addr: *addr, Handler: handler(db)}
-	log.Printf("ForgeDB viewer at http://%s", *addr)
+	defer lib.close()
+	srv := &http.Server{Addr: *addr, Handler: handler(lib)}
+	log.Printf("ForgeDB at http://%s", *addr)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
 }
 
-func openDB(path string) (*forgedb.DB, error) {
-	_, err := os.Stat(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return forgedb.Create(path)
-	}
+type library struct {
+	dir  string
+	mu   sync.Mutex
+	name string
+	db   *forgedb.DB
+}
+
+func newLibrary(dirFlag, dbFlag string) (*library, error) {
+	dir, name, err := resolve(dirFlag, dbFlag)
 	if err != nil {
 		return nil, err
 	}
-	return forgedb.Open(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, err
+	}
+	lib := &library{dir: dir}
+	if name != "" {
+		if err := lib.open(name, true); err != nil {
+			return nil, err
+		}
+	}
+	return lib, nil
 }
 
-func handler(db *forgedb.DB) http.Handler {
+func resolve(dirFlag, dbFlag string) (string, string, error) {
+	dir := dirFlag
+	name := ""
+	if dbFlag != "" {
+		if filepath.Dir(dbFlag) != "." {
+			dir = filepath.Dir(dbFlag)
+		}
+		base := filepath.Base(dbFlag)
+		name = strings.TrimSuffix(base, ".db")
+		if !safeIdent(name) {
+			return "", "", errors.New("database name is not an identifier")
+		}
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", "", err
+	}
+	return abs, name, nil
+}
+
+func (l *library) close() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.db != nil {
+		l.db.Close()
+		l.db = nil
+	}
+}
+
+func (l *library) names() ([]string, error) {
+	entries, err := os.ReadDir(l.dir)
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".db") {
+			continue
+		}
+		name := strings.TrimSuffix(entry.Name(), ".db")
+		if safeIdent(name) {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+func (l *library) open(name string, create bool) error {
+	if !safeIdent(name) {
+		return errors.New("database name is not an identifier")
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	path := filepath.Join(l.dir, name+".db")
+	var db *forgedb.DB
+	var err error
+	if create {
+		if _, statErr := os.Stat(path); errors.Is(statErr, os.ErrNotExist) {
+			db, err = forgedb.Create(path)
+		} else if statErr != nil {
+			return statErr
+		} else {
+			db, err = forgedb.Open(path)
+		}
+	} else {
+		db, err = forgedb.Open(path)
+	}
+	if err != nil {
+		return err
+	}
+	if l.db != nil {
+		l.db.Close()
+	}
+	l.db = db
+	l.name = name
+	return nil
+}
+
+func (l *library) leave() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.db != nil {
+		l.db.Close()
+		l.db = nil
+		l.name = ""
+	}
+}
+
+func (l *library) do(fn func(*forgedb.DB) error) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.db == nil {
+		return errors.New("no database is open")
+	}
+	return fn(l.db)
+}
+
+func handler(lib *library) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", servePage)
+	mux.HandleFunc("/api/databases", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			names, err := lib.names()
+			if err != nil {
+				writeErr(w, http.StatusInternalServerError, err)
+				return
+			}
+			lib.mu.Lock()
+			current := lib.name
+			dir := lib.dir
+			lib.mu.Unlock()
+			writeJSON(w, http.StatusOK, map[string]any{"dir": dir, "current": current, "names": names})
+		case http.MethodPost:
+			var req struct {
+				Name string `json:"name"`
+			}
+			if err := readJSON(r, &req); err != nil {
+				writeErr(w, http.StatusBadRequest, err)
+				return
+			}
+			path := filepath.Join(lib.dir, req.Name+".db")
+			if _, err := os.Stat(path); err == nil {
+				writeErr(w, http.StatusBadRequest, errors.New("that database already exists"))
+				return
+			}
+			if err := lib.open(req.Name, true); err != nil {
+				writeErr(w, http.StatusBadRequest, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]string{"name": req.Name})
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc("/api/close", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		lib.leave()
+		writeJSON(w, http.StatusOK, map[string]string{"ok": "closed"})
+	})
+	mux.HandleFunc("/api/open", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			Name string `json:"name"`
+		}
+		if err := readJSON(r, &req); err != nil {
+			writeErr(w, http.StatusBadRequest, err)
+			return
+		}
+		if err := lib.open(req.Name, false); err != nil {
+			writeErr(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"name": req.Name})
+	})
 	mux.HandleFunc("/api/inspect", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		snap, err := db.Inspect()
+		var snap *forgedb.Snapshot
+		err := lib.do(func(db *forgedb.DB) error {
+			var err error
+			snap, err = db.Inspect()
+			return err
+		})
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, err)
+			writeErr(w, http.StatusBadRequest, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, inspectJSON(snap))
 	})
 	mux.HandleFunc("/api/rows", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
+		switch r.Method {
+		case http.MethodGet:
+			name := r.URL.Query().Get("table")
+			var out resultBody
+			err := lib.do(func(db *forgedb.DB) error {
+				res, err := queryTable(db, name)
+				if err != nil {
+					return err
+				}
+				out = resultJSON(res)
+				return nil
+			})
+			if err != nil {
+				writeErr(w, http.StatusBadRequest, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, out)
+		case http.MethodPost:
+			var req struct {
+				Table  string    `json:"table"`
+				Values []literal `json:"values"`
+			}
+			if err := readJSON(r, &req); err != nil {
+				writeErr(w, http.StatusBadRequest, err)
+				return
+			}
+			err := lib.do(func(db *forgedb.DB) error {
+				table, err := findTable(db, req.Table)
+				if err != nil {
+					return err
+				}
+				if len(req.Values) != len(table.Columns) {
+					return errors.New("supply every column")
+				}
+				var vals []string
+				for i, col := range table.Columns {
+					if col.Primary && req.Values[i].Null {
+						return errors.New("the primary key cannot be null")
+					}
+					lit, err := req.Values[i].sql(col.Type)
+					if err != nil {
+						return err
+					}
+					vals = append(vals, lit)
+				}
+				_, err = db.Exec("INSERT INTO " + table.Name + " VALUES (" + strings.Join(vals, ", ") + ")")
+				return err
+			})
+			if err != nil {
+				writeErr(w, http.StatusBadRequest, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]string{"ok": "inserted"})
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc("/api/rows/update", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		name := r.URL.Query().Get("table")
-		if !safeIdent(name) {
-			writeErr(w, http.StatusBadRequest, errors.New("table name is not an identifier"))
+		var req struct {
+			Table  string    `json:"table"`
+			Key    literal   `json:"key"`
+			Values []literal `json:"values"`
+		}
+		if err := readJSON(r, &req); err != nil {
+			writeErr(w, http.StatusBadRequest, err)
 			return
 		}
-		res, err := db.Exec("SELECT * FROM " + name + " LIMIT 200")
+		err := lib.do(func(db *forgedb.DB) error {
+			table, err := findTable(db, req.Table)
+			if err != nil {
+				return err
+			}
+			if len(req.Values) != len(table.Columns) {
+				return errors.New("supply every column")
+			}
+			key, err := req.Key.sql(pkType(table))
+			if err != nil {
+				return err
+			}
+			sets := make([]string, len(table.Columns))
+			for i, col := range table.Columns {
+				if col.Primary && req.Values[i].Null {
+					return errors.New("the primary key cannot be null")
+				}
+				lit, err := req.Values[i].sql(col.Type)
+				if err != nil {
+					return err
+				}
+				sets[i] = col.Name + " = " + lit
+			}
+			_, err = db.Exec("UPDATE " + table.Name + " SET " + strings.Join(sets, ", ") + " WHERE " + table.PrimaryKey + " = " + key)
+			return err
+		})
 		if err != nil {
 			writeErr(w, http.StatusBadRequest, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, resultJSON(res))
+		writeJSON(w, http.StatusOK, map[string]string{"ok": "updated"})
+	})
+	mux.HandleFunc("/api/rows/delete", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			Table string  `json:"table"`
+			Key   literal `json:"key"`
+		}
+		if err := readJSON(r, &req); err != nil {
+			writeErr(w, http.StatusBadRequest, err)
+			return
+		}
+		err := lib.do(func(db *forgedb.DB) error {
+			table, err := findTable(db, req.Table)
+			if err != nil {
+				return err
+			}
+			key, err := req.Key.sql(pkType(table))
+			if err != nil {
+				return err
+			}
+			_, err = db.Exec("DELETE FROM " + table.Name + " WHERE " + table.PrimaryKey + " = " + key)
+			return err
+		})
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"ok": "deleted"})
+	})
+	mux.HandleFunc("/api/tables", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			Name    string `json:"name"`
+			Columns []struct {
+				Name    string `json:"name"`
+				Type    string `json:"type"`
+				Primary bool   `json:"primary"`
+			} `json:"columns"`
+		}
+		if err := readJSON(r, &req); err != nil {
+			writeErr(w, http.StatusBadRequest, err)
+			return
+		}
+		stmt, err := createTableSQL(req.Name, req.Columns)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err)
+			return
+		}
+		err = lib.do(func(db *forgedb.DB) error {
+			_, err := db.Exec(stmt)
+			return err
+		})
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"ok": "created"})
 	})
 	mux.HandleFunc("/api/exec", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
-		if err != nil {
-			writeErr(w, http.StatusBadRequest, err)
-			return
-		}
 		var req struct {
 			Statement string `json:"statement"`
 		}
-		if err := json.Unmarshal(body, &req); err != nil {
+		if err := readJSON(r, &req); err != nil {
 			writeErr(w, http.StatusBadRequest, err)
 			return
 		}
-		if req.Statement == "" {
+		if strings.TrimSpace(req.Statement) == "" {
 			writeErr(w, http.StatusBadRequest, errors.New("statement is empty"))
 			return
 		}
-		res, err := db.Exec(req.Statement)
+		var out resultBody
+		err := lib.do(func(db *forgedb.DB) error {
+			res, err := db.Exec(req.Statement)
+			if err != nil {
+				return err
+			}
+			out = resultJSON(res)
+			return nil
+		})
 		if err != nil {
 			writeErr(w, http.StatusBadRequest, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, resultJSON(res))
+		writeJSON(w, http.StatusOK, out)
 	})
 	return mux
+}
+
+func createTableSQL(name string, cols []struct {
+	Name    string `json:"name"`
+	Type    string `json:"type"`
+	Primary bool   `json:"primary"`
+}) (string, error) {
+	if !safeIdent(name) {
+		return "", errors.New("table name is not an identifier")
+	}
+	if len(cols) == 0 {
+		return "", errors.New("add at least one column")
+	}
+	seen := map[string]bool{}
+	keys := 0
+	parts := make([]string, len(cols))
+	for i, col := range cols {
+		if !safeIdent(col.Name) {
+			return "", errors.New("column name is not an identifier")
+		}
+		if seen[col.Name] {
+			return "", errors.New("column names must be different")
+		}
+		seen[col.Name] = true
+		kind := strings.ToUpper(col.Type)
+		if kind != "INTEGER" && kind != "TEXT" {
+			return "", errors.New("a column is INTEGER or TEXT")
+		}
+		part := col.Name + " " + kind
+		if col.Primary {
+			part += " PRIMARY KEY"
+			keys++
+		}
+		parts[i] = part
+	}
+	if keys != 1 {
+		return "", errors.New("choose one primary key")
+	}
+	return "CREATE TABLE " + name + " (" + strings.Join(parts, ", ") + ")", nil
+}
+
+func queryTable(db *forgedb.DB, name string) (*forgedb.Result, error) {
+	if !safeIdent(name) {
+		return nil, errors.New("table name is not an identifier")
+	}
+	return db.Exec("SELECT * FROM " + name + " LIMIT 200")
+}
+
+func findTable(db *forgedb.DB, name string) (forgedb.TableView, error) {
+	if !safeIdent(name) {
+		return forgedb.TableView{}, errors.New("table name is not an identifier")
+	}
+	snap, err := db.Inspect()
+	if err != nil {
+		return forgedb.TableView{}, err
+	}
+	for _, table := range snap.Tables {
+		if table.Name == name {
+			return table, nil
+		}
+	}
+	return forgedb.TableView{}, errors.New("table was not found")
+}
+
+func pkType(table forgedb.TableView) string {
+	for _, col := range table.Columns {
+		if col.Primary {
+			return col.Type
+		}
+	}
+	return ""
+}
+
+type literal struct {
+	Null bool    `json:"null"`
+	Int  *int64  `json:"int"`
+	Text *string `json:"text"`
+}
+
+func (v literal) sql(kind string) (string, error) {
+	if v.Null {
+		return "NULL", nil
+	}
+	switch kind {
+	case "INTEGER":
+		if v.Int == nil {
+			return "", errors.New("an integer value is required")
+		}
+		return strconv.FormatInt(*v.Int, 10), nil
+	case "TEXT":
+		if v.Text == nil {
+			return "", errors.New("a text value is required")
+		}
+		return "'" + strings.ReplaceAll(*v.Text, "'", "''") + "'", nil
+	default:
+		return "", errors.New("column type is not supported")
+	}
 }
 
 func servePage(w http.ResponseWriter, r *http.Request) {
@@ -128,6 +556,17 @@ func servePage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Write(b)
+}
+
+func readJSON(r *http.Request, dest any) error {
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(body, dest); err != nil {
+		return err
+	}
+	return nil
 }
 
 type inspectBody struct {

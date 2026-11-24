@@ -22,10 +22,10 @@ Reads pin a cached page. A pinned page is not evicted. A changed page stays dirt
 ```
 go run ./cmd/demo
 go run ./cmd/shell -db forge.db
-go run ./cmd/ui -db forge.db
+go run ./cmd/ui
 ```
 
-The demo prints `Hello ForgeDB`. The shell reads one statement per line. `.quit` closes the file. The viewer listens on `127.0.0.1:8091` and shows the file's pages, tables, and rows.
+The demo prints `Hello ForgeDB`. The shell reads one statement per line. `.quit` closes the file. The page listens on `127.0.0.1:8091`. It creates database files in the current folder, then tables and rows. `go run ./cmd/ui -db forge.db` opens that file first.
 
 ## Test
 

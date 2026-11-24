@@ -16,4 +16,4 @@ shell:
 	go run ./cmd/shell -db forge.db
 
 ui:
-	go run ./cmd/ui -db forge.db
+	go run ./cmd/ui
