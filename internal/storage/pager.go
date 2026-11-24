@@ -26,6 +26,24 @@ var (
 	// ErrFreedPage means Write was called for a page on the free list.
 	ErrFreedPage = errors.New("page is free")
 
+	// ErrPageType means Write was called for a page that is not a user data page.
+	ErrPageType = errors.New("page is not a user data page")
+
+	// ErrNotFound means the row is missing.
+	ErrNotFound = errors.New("row was not found")
+
+	// ErrRowTooLarge means the encoded row does not fit in one page.
+	ErrRowTooLarge = errors.New("row does not fit in one page")
+
+	// ErrSchema means the columns or values do not match the table.
+	ErrSchema = errors.New("table schema was rejected")
+
+	// ErrDuplicate means the index already stores this key.
+	ErrDuplicate = errors.New("key already exists")
+
+	// ErrKeyTooLarge means the key cannot be stored in an index page.
+	ErrKeyTooLarge = errors.New("key does not fit in an index page")
+
 	// ErrClosed means the pager has been closed.
 	ErrClosed = errors.New("database is closed")
 )
@@ -169,8 +187,12 @@ func (p *Pager) Write(pg *Page) error {
 	if err != nil {
 		return err
 	}
-	if pageTypeOf(current) == pageTypeFree {
+	switch pageTypeOf(current) {
+	case pageTypeFree:
 		return ErrFreedPage
+	case pageTypeData:
+	default:
+		return ErrPageType
 	}
 	binary.BigEndian.PutUint32(pg.data[offPageID:], id)
 	binary.BigEndian.PutUint16(pg.data[offType:], pageTypeData)

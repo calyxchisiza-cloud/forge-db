@@ -1,5 +1,4 @@
 // Package forgedb is a single-file relational database.
-// Phase 1 stores fixed-size pages. Records, indexes, and SQL come later.
 package forgedb
 
 import "forgedb/internal/storage"
@@ -30,9 +29,11 @@ var (
 // PageSize is the fixed size of every database page.
 const PageSize = storage.PageSize
 
-// DB is an open database file.
+// DB is an open database file. Page traffic goes through a fixed-size buffer pool.
 type DB struct {
-	p *storage.Pager
+	p      *storage.Pager
+	pool   *storage.Pool
+	closed bool
 }
 
 // Page is one database page. Payload is the bytes after the page header.
@@ -46,7 +47,7 @@ func Create(path string) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DB{p: p}, nil
+	return newDB(p)
 }
 
 // Open reads an existing database file and checks its header.
@@ -55,7 +56,16 @@ func Open(path string) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DB{p: p}, nil
+	return newDB(p)
+}
+
+func newDB(p *storage.Pager) (*DB, error) {
+	pool, err := storage.NewPool(p, 64)
+	if err != nil {
+		p.Close()
+		return nil, err
+	}
+	return &DB{p: p, pool: pool}, nil
 }
 
 // Allocate reserves a data page. A free page is reused before the file grows.
@@ -68,17 +78,19 @@ func (db *DB) Allocate() (*Page, error) {
 }
 
 // Read loads a page and checks its checksum and identifier.
+// The returned page is a copy, so edits are stored only by Write.
 func (db *DB) Read(id uint32) (*Page, error) {
-	pg, err := db.p.Read(id)
+	pg, err := db.pool.Fetch(id)
 	if err != nil {
 		return nil, err
 	}
-	return &Page{inner: pg}, nil
+	defer db.pool.Unpin(id)
+	return &Page{inner: storage.ClonePage(pg)}, nil
 }
 
-// Write stores a data page.
+// Write stores a data page in the buffer pool. Close or Flush writes it to the file.
 func (db *DB) Write(pg *Page) error {
-	return db.p.Write(pg.inner)
+	return db.pool.Store(pg.inner)
 }
 
 // Free returns a data page to the free list. Page 0 cannot be freed.
@@ -86,14 +98,23 @@ func (db *DB) Free(id uint32) error {
 	return db.p.Free(id)
 }
 
-// Flush pushes file data to durable storage.
+// Flush writes dirty pages and then syncs the file.
 func (db *DB) Flush() error {
-	return db.p.Flush()
+	return db.pool.Flush()
 }
 
-// Close flushes the file and releases it.
+// Close writes dirty pages, syncs the file, and releases it.
 func (db *DB) Close() error {
-	return db.p.Close()
+	if db.closed {
+		return nil
+	}
+	db.closed = true
+	flushErr := db.pool.Flush()
+	closeErr := db.p.Close()
+	if flushErr != nil {
+		return flushErr
+	}
+	return closeErr
 }
 
 // ID returns the page identifier.
