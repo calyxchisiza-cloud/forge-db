@@ -1,4 +1,4 @@
-.PHONY: test race bench demo shell
+.PHONY: test race bench demo shell ui
 
 test:
 	go test ./...
@@ -14,3 +14,6 @@ demo:
 
 shell:
 	go run ./cmd/shell -db forge.db
+
+ui:
+	go run ./cmd/ui -db forge.db

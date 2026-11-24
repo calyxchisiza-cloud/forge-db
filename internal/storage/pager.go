@@ -277,6 +277,15 @@ func (p *Pager) Close() error {
 	return closeErr
 }
 
+// Path is the database file.
+func (p *Pager) Path() string { return p.path }
+
+// FreeHead is the first free page, or zero when the free list is empty.
+func (p *Pager) FreeHead() uint32 { return p.freeHead }
+
+// NextLSN is the next log sequence number that a commit will use.
+func (p *Pager) NextLSN() uint64 { return p.nextLSN }
+
 // PageCount includes the file header page.
 func (p *Pager) PageCount() uint32 {
 	return p.pageCount

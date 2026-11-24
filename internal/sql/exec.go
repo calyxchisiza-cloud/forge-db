@@ -156,6 +156,53 @@ func (e *Engine) execOne(stmt statement) (*Result, error) {
 	}
 }
 
+// ColumnInfo describes one column in the schema catalog.
+type ColumnInfo struct {
+	Name    string
+	Type    string
+	Primary bool
+}
+
+// TableInfo describes one table in the schema catalog.
+type TableInfo struct {
+	Name       string
+	Header     uint32
+	Index      uint32
+	PrimaryKey string
+	Columns    []ColumnInfo
+}
+
+// Tables returns the schema catalog in stored order.
+func (e *Engine) Tables() []TableInfo {
+	out := make([]TableInfo, 0, len(e.entries))
+	for _, entry := range e.entries {
+		info := TableInfo{
+			Name:   entry.Name,
+			Header: entry.Header,
+			Index:  entry.Index,
+		}
+		rel := e.tables[entry.Name]
+		if rel == nil {
+			out = append(out, info)
+			continue
+		}
+		info.Columns = make([]ColumnInfo, len(rel.cols))
+		for i, col := range rel.cols {
+			kind := "TEXT"
+			if col.Type == storage.TypeInteger {
+				kind = "INTEGER"
+			}
+			primary := uint16(i) == entry.PK
+			info.Columns[i] = ColumnInfo{Name: col.Name, Type: kind, Primary: primary}
+			if primary {
+				info.PrimaryKey = col.Name
+			}
+		}
+		out = append(out, info)
+	}
+	return out
+}
+
 // Reload rebuilds table state from the last committed pages.
 func (e *Engine) Reload() error { return e.reload() }
 

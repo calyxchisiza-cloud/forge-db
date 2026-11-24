@@ -62,6 +62,35 @@ func newDataPage(id uint32) *Page {
 	return &Page{data: buf}
 }
 
+// Kind is the page type name stored in the header.
+func (pg *Page) Kind() string {
+	switch pageTypeOf(pg.data) {
+	case pageTypeHeader:
+		return "header"
+	case pageTypeFree:
+		return "free"
+	case pageTypeData:
+		return "data"
+	case pageTypeSlotted:
+		return "slotted"
+	case pageTypeTable:
+		return "table"
+	case pageTypeIndex:
+		return "index"
+	case pageTypeNode:
+		return "node"
+	case pageTypeCatalog:
+		return "catalog"
+	default:
+		return "unknown"
+	}
+}
+
+// LSN is the log sequence number stored in the page header.
+func (pg *Page) LSN() uint64 {
+	return binary.BigEndian.Uint64(pg.data[offLSN:])
+}
+
 // ClonePage returns a detached copy of a page.
 func ClonePage(pg *Page) *Page {
 	data := make([]byte, PageSize)
