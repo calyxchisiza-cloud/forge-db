@@ -52,7 +52,7 @@ type Table struct {
 
 // CreateTable stores the column list and returns an empty table.
 func (db *DB) CreateTable(cols []Column) (*Table, error) {
-	inner, err := storage.CreateTable(db.p, toStorageColumns(cols))
+	inner, err := storage.CreateTable(db.pool, toStorageColumns(cols))
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (db *DB) CreateTable(cols []Column) (*Table, error) {
 
 // OpenTable loads a table from the header page written by CreateTable.
 func (db *DB) OpenTable(header uint32) (*Table, error) {
-	inner, err := storage.OpenTable(db.p, header)
+	inner, err := storage.OpenTable(db.pool, header)
 	if err != nil {
 		return nil, err
 	}

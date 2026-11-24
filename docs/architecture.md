@@ -1,6 +1,6 @@
 # ForgeDB architecture
 
-Phase 2 stores rows in slotted pages. The pager underneath still uses fixed-size pages in one file. One caller uses the database. Later phases add a buffer pool, a B+Tree, SQL, and a write-ahead log.
+Phase 3 keeps pages in a fixed buffer pool. Rows still live in slotted pages, and the file is still a sequence of 4 KB pages. One caller uses the database. Later phases add a B+Tree, SQL, and a write-ahead log.
 
 ## Now
 
@@ -15,10 +15,10 @@ Phase 2 stores rows in slotted pages. The pager underneath still uses fixed-size
 | Durability | `Flush` and `Close` call `File.Sync`. A crash between two writes is recovered once the log exists. |
 | Rows | `INTEGER` is an int64. `TEXT` is raw bytes. A null bitmap precedes the values. A row must fit in one page. |
 | Slots | Records grow forward. The slot directory grows backward. A deleted slot stays empty and can be reused. |
+| Pool | A fixed number of frames. Fetch pins a page. A pinned page stays resident. A dirty page is written before its frame is reused and on Flush. |
 
 ## Later
 
-- Phase 3: a buffer pool with pin counts, dirty pages, and LRU replacement.
 - Phase 4: a B+Tree that maps keys to the page and slot of a row.
 - Phase 5: SQL for one table at a time, without joins or expressions.
 - Phase 6: a write-ahead log of full page images, commit, rollback, and recovery.

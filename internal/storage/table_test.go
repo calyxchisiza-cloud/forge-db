@@ -13,8 +13,15 @@ func TestRowsSurviveReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	table, err := CreateTable(p, []Column{{Name: "id", Type: TypeInteger}, {Name: "name", Type: TypeText}})
+	pool, err := NewPool(p, 2)
 	if err != nil {
+		t.Fatal(err)
+	}
+	table, err := CreateTable(pool, []Column{{Name: "id", Type: TypeInteger}, {Name: "name", Type: TypeText}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.Flush(); err != nil {
 		t.Fatal(err)
 	}
 	if err := p.Write(mustRead(t, p, table.HeaderID())); !errors.Is(err, ErrPageType) {
@@ -30,6 +37,9 @@ func TestRowsSurviveReopen(t *testing.T) {
 	if _, err := table.Insert([]Value{{Null: true}, {Null: true}}); err != nil {
 		t.Fatal(err)
 	}
+	if err := pool.Flush(); err != nil {
+		t.Fatal(err)
+	}
 	if err := p.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +48,11 @@ func TestRowsSurviveReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer p.Close()
-	table, err = OpenTable(p, table.HeaderID())
+	pool, err = NewPool(p, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	table, err = OpenTable(pool, table.HeaderID())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,8 +79,8 @@ func TestRowsSurviveReopen(t *testing.T) {
 }
 
 func TestDeleteReusesTheSlot(t *testing.T) {
-	p := newTestPager(t)
-	table, err := CreateTable(p, []Column{{Name: "name", Type: TypeText}})
+	pool := newTestPool(t)
+	table, err := CreateTable(pool, []Column{{Name: "name", Type: TypeText}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,8 +117,8 @@ func TestDeleteReusesTheSlot(t *testing.T) {
 }
 
 func TestUpdateStaysOrMoves(t *testing.T) {
-	p := newTestPager(t)
-	table, err := CreateTable(p, []Column{{Name: "body", Type: TypeText}})
+	pool := newTestPool(t)
+	table, err := CreateTable(pool, []Column{{Name: "body", Type: TypeText}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,9 +167,9 @@ func TestUpdateStaysOrMoves(t *testing.T) {
 }
 
 func TestRowLargerThanAPageIsRejected(t *testing.T) {
-	p := newTestPager(t)
-	before := p.PageCount()
-	table, err := CreateTable(p, []Column{{Name: "body", Type: TypeText}})
+	pool := newTestPool(t)
+	before := pool.pager.PageCount()
+	table, err := CreateTable(pool, []Column{{Name: "body", Type: TypeText}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,27 +181,37 @@ func TestRowLargerThanAPageIsRejected(t *testing.T) {
 	if err := table.Scan(func(RowID, []Value) error { n++; return nil }); err != nil {
 		t.Fatal(err)
 	}
-	if n != 0 || p.PageCount() != before+1 {
-		t.Fatalf("rows %d pages %d before %d", n, p.PageCount(), before)
+	if n != 0 || pool.pager.PageCount() != before+1 {
+		t.Fatalf("rows %d pages %d before %d", n, pool.pager.PageCount(), before)
 	}
 }
 
 func TestSchemaValidation(t *testing.T) {
-	p := newTestPager(t)
-	if _, err := CreateTable(p, nil); !errors.Is(err, ErrSchema) {
+	pool := newTestPool(t)
+	if _, err := CreateTable(pool, nil); !errors.Is(err, ErrSchema) {
 		t.Fatalf("empty %v", err)
 	}
 	cols := []Column{{Name: "id", Type: TypeInteger}, {Name: "id", Type: TypeInteger}}
-	if _, err := CreateTable(p, cols); !errors.Is(err, ErrSchema) {
+	if _, err := CreateTable(pool, cols); !errors.Is(err, ErrSchema) {
 		t.Fatalf("duplicate %v", err)
 	}
-	table, err := CreateTable(p, []Column{{Name: "id", Type: TypeInteger}})
+	table, err := CreateTable(pool, []Column{{Name: "id", Type: TypeInteger}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := table.Insert(nil); !errors.Is(err, ErrSchema) {
 		t.Fatalf("values %v", err)
 	}
+}
+
+func newTestPool(t *testing.T) *Pool {
+	t.Helper()
+	p := newTestPager(t)
+	pool, err := NewPool(p, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return pool
 }
 
 func newTestPager(t *testing.T) *Pager {

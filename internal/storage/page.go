@@ -58,6 +58,13 @@ func newDataPage(id uint32) *Page {
 	return &Page{data: buf}
 }
 
+// ClonePage returns a detached copy of a page.
+func ClonePage(pg *Page) *Page {
+	data := make([]byte, PageSize)
+	copy(data, pg.data)
+	return &Page{data: data}
+}
+
 func pageTypeOf(buf []byte) uint16 {
 	return binary.BigEndian.Uint16(buf[offType:])
 }

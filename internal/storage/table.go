@@ -22,8 +22,9 @@ type RowID struct {
 }
 
 // Table stores rows in slotted pages. The column list is kept in the table header page.
+// Page reads and writes go through the buffer pool.
 type Table struct {
-	pager  *Pager
+	pool   *Pool
 	header uint32
 	cols   []Column
 	first  uint32
@@ -31,15 +32,19 @@ type Table struct {
 }
 
 // CreateTable allocates a header page and stores the column list in it.
-func CreateTable(pager *Pager, cols []Column) (*Table, error) {
+func CreateTable(pool *Pool, cols []Column) (*Table, error) {
 	if err := validateColumns(cols); err != nil {
 		return nil, err
 	}
-	pg, err := pager.Allocate()
+	pg, err := pool.pager.Allocate()
 	if err != nil {
 		return nil, err
 	}
-	t := &Table{pager: pager, header: pg.ID(), cols: cloneColumns(cols)}
+	if err := pool.Adopt(pg); err != nil {
+		return nil, err
+	}
+	defer pool.Unpin(pg.ID())
+	t := &Table{pool: pool, header: pg.ID(), cols: cloneColumns(cols)}
 	if err := t.writeHeader(pg); err != nil {
 		return nil, err
 	}
@@ -47,11 +52,12 @@ func CreateTable(pager *Pager, cols []Column) (*Table, error) {
 }
 
 // OpenTable loads a table from its header page.
-func OpenTable(pager *Pager, header uint32) (*Table, error) {
-	pg, err := pager.Read(header)
+func OpenTable(pool *Pool, header uint32) (*Table, error) {
+	pg, err := pool.Fetch(header)
 	if err != nil {
 		return nil, err
 	}
+	defer pool.Unpin(header)
 	if pageTypeOf(pg.data) != pageTypeTable {
 		return nil, ErrSchema
 	}
@@ -59,7 +65,7 @@ func OpenTable(pager *Pager, header uint32) (*Table, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Table{pager: pager, header: header, cols: cols, first: first, last: last}, nil
+	return &Table{pool: pool, header: header, cols: cols, first: first, last: last}, nil
 }
 
 // HeaderID is the page that stores this table's columns.
@@ -83,6 +89,7 @@ func (t *Table) Get(id RowID) ([]Value, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer t.pool.Unpin(id.Page)
 	return decodeRow(t.cols, buf[off:off+n])
 }
 
@@ -98,10 +105,12 @@ func (t *Table) Update(id RowID, vals []Value) (RowID, error) {
 	}
 	count := slotCount(pg.data)
 	if int(id.Slot) >= count {
+		t.pool.Unpin(id.Page)
 		return RowID{}, ErrNotFound
 	}
 	_, n := readSlot(pg.data, int(id.Slot))
 	if n == 0 {
+		t.pool.Unpin(id.Page)
 		return RowID{}, ErrNotFound
 	}
 	used := int(binary.BigEndian.Uint16(pg.data[slottedFree:])) - slottedRecords
@@ -111,10 +120,15 @@ func (t *Table) Update(id RowID, vals []Value) (RowID, error) {
 		putSlot(pg.data, int(id.Slot), 0, 0)
 		compact(pg.data)
 		place(pg.data, int(id.Slot), rec)
-		if err := t.save(pg); err != nil {
+		err := t.save(pg)
+		t.pool.Unpin(id.Page)
+		if err != nil {
 			return RowID{}, err
 		}
 		return id, nil
+	}
+	if err := t.pool.Unpin(id.Page); err != nil {
+		return RowID{}, err
 	}
 	moved, err := t.insertRecord(rec, id.Page)
 	if err != nil {
@@ -126,7 +140,9 @@ func (t *Table) Update(id RowID, vals []Value) (RowID, error) {
 	}
 	putSlot(pg.data, int(id.Slot), 0, 0)
 	compact(pg.data)
-	if err := t.save(pg); err != nil {
+	err = t.save(pg)
+	t.pool.Unpin(id.Page)
+	if err != nil {
 		return RowID{}, err
 	}
 	return moved, nil
@@ -138,6 +154,7 @@ func (t *Table) Delete(id RowID) error {
 	if err != nil {
 		return err
 	}
+	defer t.pool.Unpin(id.Page)
 	if int(id.Slot) >= slotCount(pg.data) {
 		return ErrNotFound
 	}
@@ -155,7 +172,7 @@ func (t *Table) Scan(fn func(RowID, []Value) error) error {
 	id := t.first
 	seen := map[uint32]bool{}
 	for id != 0 {
-		if seen[id] || id >= t.pager.pageCount {
+		if seen[id] || id >= t.pool.pager.pageCount {
 			return ErrCorrupt
 		}
 		seen[id] = true
@@ -170,17 +187,24 @@ func (t *Table) Scan(fn func(RowID, []Value) error) error {
 				continue
 			}
 			if int(off)+int(n) > PageSize {
+				t.pool.Unpin(id)
 				return ErrCorrupt
 			}
 			vals, err := decodeRow(t.cols, pg.data[int(off):int(off)+int(n)])
 			if err != nil {
+				t.pool.Unpin(id)
 				return err
 			}
 			if err := fn(RowID{Page: id, Slot: uint16(slot)}, vals); err != nil {
+				t.pool.Unpin(id)
 				return err
 			}
 		}
-		id = binary.BigEndian.Uint32(pg.data[slottedNext:])
+		next := binary.BigEndian.Uint32(pg.data[slottedNext:])
+		if err := t.pool.Unpin(id); err != nil {
+			return err
+		}
+		id = next
 	}
 	return nil
 }
@@ -193,7 +217,9 @@ func (t *Table) insertRecord(rec []byte, skip uint32) (RowID, error) {
 			if err != nil {
 				return RowID{}, err
 			}
-			id = binary.BigEndian.Uint32(pg.data[slottedNext:])
+			next := binary.BigEndian.Uint32(pg.data[slottedNext:])
+			t.pool.Unpin(id)
+			id = next
 			continue
 		}
 		pg, err := t.readSlotted(id)
@@ -202,13 +228,17 @@ func (t *Table) insertRecord(rec []byte, skip uint32) (RowID, error) {
 		}
 		if slot, ok := placeOnPage(pg.data, rec); ok {
 			if err := t.save(pg); err != nil {
+				t.pool.Unpin(id)
 				return RowID{}, err
 			}
+			t.pool.Unpin(id)
 			return RowID{Page: id, Slot: uint16(slot)}, nil
 		}
-		id = binary.BigEndian.Uint32(pg.data[slottedNext:])
+		next := binary.BigEndian.Uint32(pg.data[slottedNext:])
+		t.pool.Unpin(id)
+		id = next
 	}
-	pg, err := t.pager.Allocate()
+	pg, err := t.pool.pager.Allocate()
 	if err != nil {
 		return RowID{}, err
 	}
@@ -217,6 +247,10 @@ func (t *Table) insertRecord(rec []byte, skip uint32) (RowID, error) {
 	if !ok {
 		return RowID{}, ErrRowTooLarge
 	}
+	if err := t.pool.Adopt(pg); err != nil {
+		return RowID{}, err
+	}
+	defer t.pool.Unpin(pg.ID())
 	if err := t.save(pg); err != nil {
 		return RowID{}, err
 	}
@@ -229,7 +263,9 @@ func (t *Table) insertRecord(rec []byte, skip uint32) (RowID, error) {
 			return RowID{}, err
 		}
 		binary.BigEndian.PutUint32(prev.data[slottedNext:], pg.ID())
-		if err := t.save(prev); err != nil {
+		err = t.save(prev)
+		t.pool.Unpin(prev.ID())
+		if err != nil {
 			return RowID{}, err
 		}
 		t.last = pg.ID()
@@ -246,21 +282,24 @@ func (t *Table) liveSlot(id RowID) ([]byte, int, int, error) {
 		return nil, 0, 0, err
 	}
 	if int(id.Slot) >= slotCount(pg.data) {
+		t.pool.Unpin(id.Page)
 		return nil, 0, 0, ErrNotFound
 	}
 	off, n := readSlot(pg.data, int(id.Slot))
 	if n == 0 {
+		t.pool.Unpin(id.Page)
 		return nil, 0, 0, ErrNotFound
 	}
 	return pg.data, int(off), int(n), nil
 }
 
 func (t *Table) readSlotted(id uint32) (*Page, error) {
-	pg, err := t.pager.Read(id)
+	pg, err := t.pool.Fetch(id)
 	if err != nil {
 		return nil, err
 	}
 	if pageTypeOf(pg.data) != pageTypeSlotted {
+		t.pool.Unpin(id)
 		return nil, ErrNotFound
 	}
 	return pg, nil
@@ -268,14 +307,15 @@ func (t *Table) readSlotted(id uint32) (*Page, error) {
 
 func (t *Table) save(pg *Page) error {
 	putChecksum(pg.data)
-	return t.pager.writeRaw(pg.data)
+	return t.pool.MarkDirty(pg.ID())
 }
 
 func (t *Table) persistHeader() error {
-	pg, err := t.pager.Read(t.header)
+	pg, err := t.pool.Fetch(t.header)
 	if err != nil {
 		return err
 	}
+	defer t.pool.Unpin(t.header)
 	return t.writeHeader(pg)
 }
 
@@ -297,8 +337,7 @@ func (t *Table) writeHeader(pg *Page) error {
 		copy(pg.data[pos+2:], col.Name)
 		pos += 2 + len(col.Name)
 	}
-	putChecksum(pg.data)
-	return t.pager.writeRaw(pg.data)
+	return t.save(pg)
 }
 
 func readHeader(buf []byte) ([]Column, uint32, uint32, error) {
