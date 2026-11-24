@@ -52,6 +52,11 @@ type Table struct {
 
 // CreateTable stores the column list and returns an empty table.
 func (db *DB) CreateTable(cols []Column) (*Table, error) {
+	unlock := db.pool.Guard(true)
+	defer unlock()
+	if db.closed {
+		return nil, ErrClosed
+	}
 	inner, err := storage.CreateTable(db.pool, toStorageColumns(cols))
 	if err != nil {
 		return nil, err
@@ -61,6 +66,11 @@ func (db *DB) CreateTable(cols []Column) (*Table, error) {
 
 // OpenTable loads a table from the header page written by CreateTable.
 func (db *DB) OpenTable(header uint32) (*Table, error) {
+	unlock := db.pool.Guard(false)
+	defer unlock()
+	if db.closed {
+		return nil, ErrClosed
+	}
 	inner, err := storage.OpenTable(db.pool, header)
 	if err != nil {
 		return nil, err
@@ -73,29 +83,34 @@ func (t *Table) HeaderID() uint32 { return t.inner.HeaderID() }
 
 // Insert adds a row.
 func (t *Table) Insert(vals []Value) (RowID, error) {
+	defer t.inner.Guard(true)()
 	id, err := t.inner.Insert(toStorageValues(vals))
 	return RowID{Page: id.Page, Slot: id.Slot}, err
 }
 
 // Get reads one row.
 func (t *Table) Get(id RowID) ([]Value, error) {
+	defer t.inner.Guard(false)()
 	vals, err := t.inner.Get(storage.RowID{Page: id.Page, Slot: id.Slot})
 	return fromStorageValues(vals), err
 }
 
 // Update replaces a row. The identifier is unchanged when the new row fits on the same page.
 func (t *Table) Update(id RowID, vals []Value) (RowID, error) {
+	defer t.inner.Guard(true)()
 	next, err := t.inner.Update(storage.RowID{Page: id.Page, Slot: id.Slot}, toStorageValues(vals))
 	return RowID{Page: next.Page, Slot: next.Slot}, err
 }
 
 // Delete removes a row.
 func (t *Table) Delete(id RowID) error {
+	defer t.inner.Guard(true)()
 	return t.inner.Delete(storage.RowID{Page: id.Page, Slot: id.Slot})
 }
 
 // Scan visits live rows in page order.
 func (t *Table) Scan(fn func(RowID, []Value) error) error {
+	defer t.inner.Guard(false)()
 	return t.inner.Scan(func(id storage.RowID, vals []storage.Value) error {
 		return fn(RowID{Page: id.Page, Slot: id.Slot}, fromStorageValues(vals))
 	})

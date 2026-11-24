@@ -71,6 +71,9 @@ func OpenTable(pool *Pool, header uint32) (*Table, error) {
 // HeaderID is the page that stores this table's columns.
 func (t *Table) HeaderID() uint32 { return t.header }
 
+// Guard locks the database for one table call.
+func (t *Table) Guard(write bool) func() { return t.pool.Guard(write) }
+
 // Columns returns a copy of the column list.
 func (t *Table) Columns() []Column { return cloneColumns(t.cols) }
 

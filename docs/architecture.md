@@ -1,6 +1,6 @@
 # ForgeDB architecture
 
-Phase 6 keeps a transaction's pages private until commit. Commit appends those page images and a commit record to a log, and syncs the log before it returns. Opening the file replays committed images. One caller uses the database. Later phases add concurrent readers.
+Phase 7 keeps a transaction's pages private until commit. Commit appends those page images and a commit record to a log, and syncs the log before it returns. Opening the file replays committed images. Queries share one read lock. A writer holds the lock from BEGIN until COMMIT or ROLLBACK, so readers wait and then see the last committed pages.
 
 ## Now
 
@@ -18,8 +18,8 @@ Phase 6 keeps a transaction's pages private until commit. Commit appends those p
 | Pool | A fixed number of frames. Fetch pins a page. A pinned page stays resident. A dirty page is written before its frame is reused and on Flush. |
 | Index | A B+Tree of byte keys. Each key points at a page and slot. Delete borrows from a sibling or merges, and the tree can be checked. |
 | SQL | `CREATE TABLE`, `INSERT`, `SELECT`, `UPDATE`, and `DELETE` use literal values. One column is the primary key. A comparison with NULL is not true. A statement outside `BEGIN` commits on success and rolls back on failure. |
+| Lock | Many queries run together. One writer waits until they finish, then keeps the lock until commit or rollback. A failed statement ends that transaction and releases the writer. |
 
 ## Later
 
-- Phase 7: many readers and one writer.
 - Phase 8: benchmarks, a statement shell, and the v1 notes.

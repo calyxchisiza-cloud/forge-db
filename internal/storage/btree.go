@@ -129,6 +129,9 @@ func OpenIndex(pool *Pool, meta uint32) (*Index, error) {
 // MetaID is the catalog page. It stays the same when the root splits.
 func (ix *Index) MetaID() uint32 { return ix.meta }
 
+// Guard locks the database for one index call.
+func (ix *Index) Guard(write bool) func() { return ix.pool.Guard(write) }
+
 // Put inserts a key. The key is copied.
 func (ix *Index) Put(key []byte, row RowID) error {
 	if len(key) > maxKeyBytes {

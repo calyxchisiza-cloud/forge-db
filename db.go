@@ -85,6 +85,11 @@ func newDB(p *storage.Pager) (*DB, error) {
 
 // Allocate reserves a data page. A free page is reused before the file grows.
 func (db *DB) Allocate() (*Page, error) {
+	unlock := db.pool.Guard(true)
+	defer unlock()
+	if db.closed {
+		return nil, ErrClosed
+	}
 	pg, err := db.p.Allocate()
 	if err != nil {
 		return nil, err
@@ -95,6 +100,11 @@ func (db *DB) Allocate() (*Page, error) {
 // Read loads a page and checks its checksum and identifier.
 // The returned page is a copy, so edits are stored only by Write.
 func (db *DB) Read(id uint32) (*Page, error) {
+	unlock := db.pool.Guard(false)
+	defer unlock()
+	if db.closed {
+		return nil, ErrClosed
+	}
 	pg, err := db.pool.Fetch(id)
 	if err != nil {
 		return nil, err
@@ -105,48 +115,100 @@ func (db *DB) Read(id uint32) (*Page, error) {
 
 // Write stores a data page in the buffer pool. Close or Flush writes it to the file.
 func (db *DB) Write(pg *Page) error {
+	unlock := db.pool.Guard(true)
+	defer unlock()
+	if db.closed {
+		return ErrClosed
+	}
 	return db.pool.Store(pg.inner)
 }
 
 // Free returns a data page to the free list. Page 0 cannot be freed.
 func (db *DB) Free(id uint32) error {
+	unlock := db.pool.Guard(true)
+	defer unlock()
+	if db.closed {
+		return ErrClosed
+	}
 	return db.p.Free(id)
 }
 
 // Flush writes dirty pages and then syncs the file.
 func (db *DB) Flush() error {
+	unlock := db.pool.Guard(true)
+	defer unlock()
+	if db.closed {
+		return ErrClosed
+	}
 	return db.pool.Flush()
 }
 
 // Begin starts a transaction that stays open until Commit or Rollback.
 func (db *DB) Begin() error {
+	held := db.pool.Writing()
+	if !held {
+		db.pool.LockWrite()
+	}
 	if db.closed {
+		if !held {
+			db.pool.UnlockWrite()
+		}
 		return ErrClosed
 	}
-	return db.pool.BeginExplicit()
+	if err := db.pool.BeginExplicit(); err != nil {
+		if !held {
+			db.pool.UnlockWrite()
+		}
+		return err
+	}
+	return nil
 }
 
 // Commit writes the transaction to the log and syncs the log.
 func (db *DB) Commit() error {
+	held := db.pool.Writing()
+	if !held {
+		db.pool.LockWrite()
+		defer db.pool.UnlockWrite()
+	}
 	if db.closed {
 		return ErrClosed
 	}
-	return db.pool.Commit()
+	if err := db.pool.Commit(); err != nil {
+		return err
+	}
+	if held {
+		db.pool.UnlockWrite()
+	}
+	return nil
 }
 
 // Rollback discards the open transaction.
 func (db *DB) Rollback() error {
+	held := db.pool.Writing()
+	if !held {
+		db.pool.LockWrite()
+		defer db.pool.UnlockWrite()
+	}
 	if db.closed {
 		return ErrClosed
 	}
 	if err := db.pool.Rollback(); err != nil {
 		return err
 	}
-	return db.eng.Reload()
+	if err := db.eng.Reload(); err != nil {
+		return err
+	}
+	if held {
+		db.pool.UnlockWrite()
+	}
+	return nil
 }
 
 // Checkpoint writes committed pages into the database file and clears the log.
 func (db *DB) Checkpoint() error {
+	unlock := db.pool.Guard(true)
+	defer unlock()
 	if db.closed {
 		return ErrClosed
 	}
@@ -156,7 +218,12 @@ func (db *DB) Checkpoint() error {
 // Close writes committed pages, clears the log, and releases the file.
 // An open transaction is discarded.
 func (db *DB) Close() error {
+	held := db.pool.Writing()
+	if !held {
+		db.pool.LockWrite()
+	}
 	if db.closed {
+		db.pool.UnlockWrite()
 		return nil
 	}
 	db.closed = true
@@ -165,6 +232,7 @@ func (db *DB) Close() error {
 	}
 	checkErr := db.pool.Checkpoint()
 	closeErr := db.p.Close()
+	db.pool.UnlockWrite()
 	if checkErr != nil {
 		return checkErr
 	}

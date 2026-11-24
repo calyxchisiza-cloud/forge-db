@@ -3,6 +3,7 @@ package storage
 import (
 	"encoding/binary"
 	"errors"
+	"sync"
 )
 
 // ErrPoolFull means every cached page is pinned, so a miss cannot proceed.
@@ -37,6 +38,8 @@ type Pool struct {
 	stats   PoolStats
 	txn     *Txn
 	nextTxn uint64
+	gate    gate
+	busy    recMutex
 }
 
 // NewPool caches at most capacity pages from pager.
@@ -44,15 +47,20 @@ func NewPool(pager *Pager, capacity int) (*Pool, error) {
 	if capacity < 1 {
 		return nil, ErrPoolFull
 	}
-	return &Pool{
+	p := &Pool{
 		pager: pager,
 		cap:   capacity,
 		items: make(map[uint32]*frame),
-	}, nil
+	}
+	p.gate.cond = sync.NewCond(&p.gate.mu)
+	p.busy.cond = sync.NewCond(&p.busy.mu)
+	return p, nil
 }
 
 // PageCount is the number of pages visible to the caller, including a transaction's private pages.
 func (p *Pool) PageCount() uint32 {
+	p.busy.Lock()
+	defer p.busy.Unlock()
 	if p.txn != nil {
 		return p.txn.limit()
 	}
@@ -62,6 +70,8 @@ func (p *Pool) PageCount() uint32 {
 // Fetch returns a cached page and pins it. The caller must Unpin it.
 // Inside a transaction the returned page is a private copy.
 func (p *Pool) Fetch(id uint32) (*Page, error) {
+	p.busy.Lock()
+	defer p.busy.Unlock()
 	if p.txn != nil {
 		return p.txn.fetch(id)
 	}
@@ -94,6 +104,8 @@ func (p *Pool) fetchShared(id uint32) (*Page, error) {
 
 // Adopt caches a page the pager just created and pins it.
 func (p *Pool) Adopt(pg *Page) error {
+	p.busy.Lock()
+	defer p.busy.Unlock()
 	if p.txn != nil {
 		return p.txn.adopt(pg)
 	}
@@ -121,6 +133,8 @@ func (p *Pool) Adopt(pg *Page) error {
 
 // Unpin releases one pin. The page stays cached.
 func (p *Pool) Unpin(id uint32) error {
+	p.busy.Lock()
+	defer p.busy.Unlock()
 	if p.txn != nil {
 		if _, ok := p.txn.pages[id]; ok {
 			if p.txn.pins[id] == 0 {
@@ -144,6 +158,8 @@ func (p *Pool) unpinShared(id uint32) error {
 
 // MarkDirty remembers that the pinned page differs from the file.
 func (p *Pool) MarkDirty(id uint32) error {
+	p.busy.Lock()
+	defer p.busy.Unlock()
 	if p.txn != nil {
 		if _, ok := p.txn.pages[id]; !ok {
 			return ErrNotFound
@@ -161,6 +177,8 @@ func (p *Pool) MarkDirty(id uint32) error {
 
 // Store copies a data page into the cache and marks it dirty.
 func (p *Pool) Store(pg *Page) error {
+	p.busy.Lock()
+	defer p.busy.Unlock()
 	if pg == nil || len(pg.data) != PageSize {
 		return ErrCorrupt
 	}
@@ -189,6 +207,8 @@ func (p *Pool) Store(pg *Page) error {
 
 // Flush writes every dirty page and then syncs the file.
 func (p *Pool) Flush() error {
+	p.busy.Lock()
+	defer p.busy.Unlock()
 	for _, f := range p.items {
 		if !f.dirty {
 			continue
@@ -204,12 +224,16 @@ func (p *Pool) Flush() error {
 
 // Stats returns a copy of the counters.
 func (p *Pool) Stats() PoolStats {
+	p.busy.Lock()
+	defer p.busy.Unlock()
 	p.stats.Resident = len(p.items)
 	return p.stats
 }
 
 // Drop removes a cached page without writing it. A missing page is not an error.
 func (p *Pool) Drop(id uint32) error {
+	p.busy.Lock()
+	defer p.busy.Unlock()
 	f, ok := p.items[id]
 	if !ok {
 		return nil
@@ -225,6 +249,8 @@ func (p *Pool) Drop(id uint32) error {
 
 // Release drops a cached page and returns it to the free list.
 func (p *Pool) Release(id uint32) error {
+	p.busy.Lock()
+	defer p.busy.Unlock()
 	if p.txn != nil {
 		return p.txn.free(id)
 	}

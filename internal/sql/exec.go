@@ -79,20 +79,27 @@ func (e *Engine) Exec(src string) (*Result, error) {
 		return e.rollback()
 	}
 	joined := e.pool.Active()
-	if !joined {
+	// A query does not open a transaction, so other readers can run beside it.
+	readOnly := false
+	if _, ok := stmt.(selectStmt); ok && !joined {
+		readOnly = true
+	}
+	if !joined && !readOnly {
 		if err := e.pool.Begin(); err != nil {
 			return nil, err
 		}
 	}
 	res, err := e.execOne(stmt)
 	if err != nil {
-		e.pool.Rollback()
-		if rerr := e.reload(); rerr != nil {
-			return nil, rerr
+		if !readOnly {
+			e.pool.Rollback()
+			if rerr := e.reload(); rerr != nil {
+				return nil, rerr
+			}
 		}
 		return nil, err
 	}
-	if !joined {
+	if !joined && !readOnly {
 		if err := e.pool.Commit(); err != nil {
 			e.pool.Rollback()
 			_ = e.reload()

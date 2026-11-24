@@ -36,6 +36,8 @@ func (p *Pool) BeginExplicit() error {
 }
 
 func (p *Pool) begin(explicit bool) error {
+	p.busy.Lock()
+	defer p.busy.Unlock()
 	if p.txn != nil {
 		return ErrTxnOpen
 	}
@@ -52,13 +54,23 @@ func (p *Pool) begin(explicit bool) error {
 }
 
 // Active reports whether a transaction is open.
-func (p *Pool) Active() bool { return p.txn != nil }
+func (p *Pool) Active() bool {
+	p.busy.Lock()
+	defer p.busy.Unlock()
+	return p.txn != nil
+}
 
 // Explicit reports whether the open transaction was started for more than one statement.
-func (p *Pool) Explicit() bool { return p.txn != nil && p.txn.explicit }
+func (p *Pool) Explicit() bool {
+	p.busy.Lock()
+	defer p.busy.Unlock()
+	return p.txn != nil && p.txn.explicit
+}
 
 // Rollback discards private page copies.
 func (p *Pool) Rollback() error {
+	p.busy.Lock()
+	defer p.busy.Unlock()
 	if p.txn == nil {
 		return ErrNoTxn
 	}
@@ -68,6 +80,8 @@ func (p *Pool) Rollback() error {
 
 // Commit writes a full image of each changed page and a commit record, then syncs the log.
 func (p *Pool) Commit() error {
+	p.busy.Lock()
+	defer p.busy.Unlock()
 	t := p.txn
 	if t == nil {
 		return ErrNoTxn
@@ -117,6 +131,8 @@ func (p *Pool) Commit() error {
 
 // Checkpoint writes committed pages into the database file and clears the log.
 func (p *Pool) Checkpoint() error {
+	p.busy.Lock()
+	defer p.busy.Unlock()
 	if p.txn != nil {
 		return ErrTxnOpen
 	}
@@ -128,6 +144,8 @@ func (p *Pool) Checkpoint() error {
 
 // Allocate reserves a page. Inside a transaction the file is unchanged.
 func (p *Pool) Allocate() (*Page, error) {
+	p.busy.Lock()
+	defer p.busy.Unlock()
 	if p.txn != nil {
 		return p.txn.allocate()
 	}
@@ -136,6 +154,8 @@ func (p *Pool) Allocate() (*Page, error) {
 
 // SetCatalog records the schema page. Inside a transaction the file is unchanged.
 func (p *Pool) SetCatalog(id uint32) error {
+	p.busy.Lock()
+	defer p.busy.Unlock()
 	if p.txn != nil {
 		return p.txn.setCatalog(id)
 	}
