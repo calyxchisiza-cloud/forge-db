@@ -26,6 +26,24 @@ var (
 	// ErrFreedPage means Write was called for a page on the free list.
 	ErrFreedPage = errors.New("page is free")
 
+	// ErrPageType means Write was called for a page that is not a user data page.
+	ErrPageType = errors.New("page is not a user data page")
+
+	// ErrNotFound means the row is missing.
+	ErrNotFound = errors.New("row was not found")
+
+	// ErrRowTooLarge means the encoded row does not fit in one page.
+	ErrRowTooLarge = errors.New("row does not fit in one page")
+
+	// ErrSchema means the columns or values do not match the table.
+	ErrSchema = errors.New("table schema was rejected")
+
+	// ErrDuplicate means the index already stores this key.
+	ErrDuplicate = errors.New("key already exists")
+
+	// ErrKeyTooLarge means the key cannot be stored in an index page.
+	ErrKeyTooLarge = errors.New("key does not fit in an index page")
+
 	// ErrClosed means the pager has been closed.
 	ErrClosed = errors.New("database is closed")
 )
@@ -34,9 +52,11 @@ var (
 // It is safe for one caller. Allocation is made durable by Close or Flush.
 type Pager struct {
 	f         *os.File
+	path      string
 	pageCount uint32
 	freeHead  uint32
 	nextLSN   uint64
+	catalog   uint32
 	closed    bool
 }
 
@@ -49,7 +69,7 @@ func Create(path string) (*Pager, error) {
 	if err != nil {
 		return nil, err
 	}
-	p := &Pager{f: f, pageCount: 1, freeHead: 0, nextLSN: 1}
+	p := &Pager{f: f, path: path, pageCount: 1, freeHead: 0, nextLSN: 1}
 	if err := p.writeHeader(); err != nil {
 		f.Close()
 		os.Remove(path)
@@ -62,6 +82,10 @@ func Create(path string) (*Pager, error) {
 func Open(path string) (*Pager, error) {
 	f, err := os.OpenFile(path, os.O_RDWR, 0)
 	if err != nil {
+		return nil, err
+	}
+	if err := replayWAL(f, path); err != nil {
+		f.Close()
 		return nil, err
 	}
 	info, err := f.Stat()
@@ -104,11 +128,18 @@ func Open(path string) (*Pager, error) {
 		f.Close()
 		return nil, ErrCorrupt
 	}
+	catalog := binary.BigEndian.Uint32(buf[offCatalog:])
+	if catalog >= count {
+		f.Close()
+		return nil, ErrCorrupt
+	}
 	p := &Pager{
 		f:         f,
+		path:      path,
 		pageCount: count,
 		freeHead:  freeHead,
 		nextLSN:   binary.BigEndian.Uint64(buf[offNextLSN:]),
+		catalog:   catalog,
 	}
 	if err := p.checkFreeList(); err != nil {
 		f.Close()
@@ -169,8 +200,12 @@ func (p *Pager) Write(pg *Page) error {
 	if err != nil {
 		return err
 	}
-	if pageTypeOf(current) == pageTypeFree {
+	switch pageTypeOf(current) {
+	case pageTypeFree:
 		return ErrFreedPage
+	case pageTypeData:
+	default:
+		return ErrPageType
 	}
 	binary.BigEndian.PutUint32(pg.data[offPageID:], id)
 	binary.BigEndian.PutUint16(pg.data[offType:], pageTypeData)
@@ -221,6 +256,13 @@ func (p *Pager) Flush() error {
 	return p.f.Sync()
 }
 
+func (p *Pager) adoptHeader(buf []byte) {
+	p.pageCount = binary.BigEndian.Uint32(buf[offPageCount:])
+	p.freeHead = binary.BigEndian.Uint32(buf[offFreeHead:])
+	p.nextLSN = binary.BigEndian.Uint64(buf[offNextLSN:])
+	p.catalog = binary.BigEndian.Uint32(buf[offCatalog:])
+}
+
 // Close flushes the file and releases it. A second call does nothing.
 func (p *Pager) Close() error {
 	if p.closed {
@@ -235,9 +277,38 @@ func (p *Pager) Close() error {
 	return closeErr
 }
 
+// Path is the database file.
+func (p *Pager) Path() string { return p.path }
+
+// FreeHead is the first free page, or zero when the free list is empty.
+func (p *Pager) FreeHead() uint32 { return p.freeHead }
+
+// NextLSN is the next log sequence number that a commit will use.
+func (p *Pager) NextLSN() uint64 { return p.nextLSN }
+
 // PageCount includes the file header page.
 func (p *Pager) PageCount() uint32 {
 	return p.pageCount
+}
+
+// Catalog is the schema page, or zero when the database has no tables.
+func (p *Pager) Catalog() uint32 { return p.catalog }
+
+// SetCatalog records the schema page in the file header.
+func (p *Pager) SetCatalog(id uint32) error {
+	if err := p.usable(); err != nil {
+		return err
+	}
+	if id == 0 || id >= p.pageCount {
+		return ErrPageRange
+	}
+	previous := p.catalog
+	p.catalog = id
+	if err := p.writeHeader(); err != nil {
+		p.catalog = previous
+		return err
+	}
+	return nil
 }
 
 func (p *Pager) usable() error {
@@ -338,6 +409,7 @@ func (p *Pager) writeHeader() error {
 	binary.BigEndian.PutUint32(buf[offPageCount:], p.pageCount)
 	binary.BigEndian.PutUint32(buf[offFreeHead:], p.freeHead)
 	binary.BigEndian.PutUint64(buf[offNextLSN:], p.nextLSN)
+	binary.BigEndian.PutUint32(buf[offCatalog:], p.catalog)
 	putChecksum(buf)
 	return p.writeRaw(buf)
 }

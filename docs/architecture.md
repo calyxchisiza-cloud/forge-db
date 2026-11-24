@@ -1,6 +1,6 @@
 # ForgeDB architecture
 
-Phase 1 stores a database as fixed-size pages in one file. One caller uses the pager. Later phases add records, a buffer pool, a B+Tree, SQL, and a write-ahead log.
+v1 keeps a transaction's pages private until commit. Commit appends those page images and a commit record to a log, and syncs the log before it returns. Opening the file replays committed images. Queries share one read lock. A writer holds the lock from BEGIN until COMMIT or ROLLBACK, so readers wait and then see the last committed pages. The statement list and the pieces left out are in [v1.md](v1.md).
 
 ## Now
 
@@ -12,14 +12,12 @@ Phase 1 stores a database as fixed-size pages in one file. One caller uses the p
 | Checks | A page stores CRC-32 of its bytes with the checksum field set to zero. The stored page number must match the slot that was read. |
 | Allocate | A free page is reused. Otherwise the file grows by one page. |
 | Free | The page is zeroed, marked free, and linked at the head of the free list. Page 0 stays allocated. |
-| Durability | `Flush` and `Close` call `File.Sync`. A crash between two writes is recovered once the log exists. |
-
-## Later
-
-- Phase 2: slotted pages, `INTEGER` and `TEXT` rows, and insert, get, update, delete, and scan.
-- Phase 3: a buffer pool with pin counts, dirty pages, and LRU replacement.
-- Phase 4: a B+Tree that maps keys to the page and slot of a row.
-- Phase 5: SQL for one table at a time, without joins or expressions.
-- Phase 6: a write-ahead log of full page images, commit, rollback, and recovery.
-- Phase 7: many readers and one writer.
-- Phase 8: benchmarks, a statement shell, and the v1 notes.
+| Durability | Commit syncs the log before it returns. The database file receives those pages at checkpoint, eviction, or the next open. A transaction with no commit record is discarded. |
+| Rows | `INTEGER` is an int64. `TEXT` is raw bytes. A null bitmap precedes the values. A row must fit in one page. |
+| Slots | Records grow forward. The slot directory grows backward. A deleted slot stays empty and can be reused. |
+| Pool | A fixed number of frames. Fetch pins a page. A pinned page stays resident. A dirty page is written before its frame is reused and on Flush. |
+| Index | A B+Tree of byte keys. Each key points at a page and slot. Delete borrows from a sibling or merges, and the tree can be checked. |
+| SQL | `CREATE TABLE`, `INSERT`, `SELECT`, `UPDATE`, and `DELETE` use literal values. One column is the primary key. A comparison with NULL is not true. A statement outside `BEGIN` commits on success and rolls back on failure. |
+| Lock | Many queries run together. One writer waits until they finish, then keeps the lock until commit or rollback. A failed statement ends that transaction and releases the writer. |
+| Shell | `cmd/shell` runs one statement per line. A query prints rows. Any other statement prints how many rows changed. |
+| Page | `cmd/ui` lists every database file, then shows that file's tables, keys, and rows. |
