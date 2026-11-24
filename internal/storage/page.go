@@ -30,6 +30,8 @@ const (
 	pageTypeData    uint16 = 3
 	pageTypeSlotted uint16 = 4
 	pageTypeTable   uint16 = 5
+	pageTypeIndex   uint16 = 6
+	pageTypeNode    uint16 = 7
 )
 
 const magic = "FGDB"

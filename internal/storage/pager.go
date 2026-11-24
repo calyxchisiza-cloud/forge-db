@@ -38,6 +38,12 @@ var (
 	// ErrSchema means the columns or values do not match the table.
 	ErrSchema = errors.New("table schema was rejected")
 
+	// ErrDuplicate means the index already stores this key.
+	ErrDuplicate = errors.New("key already exists")
+
+	// ErrKeyTooLarge means the key cannot be stored in an index page.
+	ErrKeyTooLarge = errors.New("key does not fit in an index page")
+
 	// ErrClosed means the pager has been closed.
 	ErrClosed = errors.New("database is closed")
 )

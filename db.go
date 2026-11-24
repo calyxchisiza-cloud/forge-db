@@ -1,5 +1,4 @@
 // Package forgedb is a single-file relational database.
-// Phase 1 stores fixed-size pages. Records, indexes, and SQL come later.
 package forgedb
 
 import "forgedb/internal/storage"

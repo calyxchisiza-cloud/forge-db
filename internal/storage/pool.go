@@ -167,6 +167,32 @@ func (p *Pool) Stats() PoolStats {
 	return p.stats
 }
 
+// Drop removes a cached page without writing it. A missing page is not an error.
+func (p *Pool) Drop(id uint32) error {
+	f, ok := p.items[id]
+	if !ok {
+		return nil
+	}
+	if f.pin != 0 {
+		return ErrPoolFull
+	}
+	p.unlink(f)
+	delete(p.items, f.id)
+	p.stats.Resident = len(p.items)
+	return nil
+}
+
+// Release drops a cached page and returns it to the free list.
+func (p *Pool) Release(id uint32) error {
+	if err := p.Drop(id); err != nil {
+		return err
+	}
+	if err := p.Drop(0); err != nil {
+		return err
+	}
+	return p.pager.Free(id)
+}
+
 func (p *Pool) evict() error {
 	for f := p.tail; f != nil; f = f.prev {
 		if f.pin != 0 {
