@@ -2,6 +2,7 @@ package sql
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -82,6 +83,62 @@ func TestStatementsAndReopen(t *testing.T) {
 	}
 	if _, err := eng.Exec(`SELECT id`); !errors.Is(err, ErrSyntax) {
 		t.Fatalf("syntax %v", err)
+	}
+}
+
+func TestTransactionRollbackAndReplay(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "forge.db")
+	eng, pool, pager := newEngine(t, path)
+	mustExec(t, eng, `CREATE TABLE account (id INTEGER PRIMARY KEY, name TEXT)`)
+	mustExec(t, eng, `BEGIN`)
+	mustExec(t, eng, `INSERT INTO account VALUES (1, 'Ada')`)
+	res := mustExec(t, eng, `SELECT name FROM account WHERE id = 1`)
+	if len(res.Rows) != 1 || string(res.Rows[0][0].Text) != "Ada" {
+		t.Fatalf("uncommitted %+v", res.Rows)
+	}
+	mustExec(t, eng, `ROLLBACK`)
+	res = mustExec(t, eng, `SELECT name FROM account`)
+	if len(res.Rows) != 0 {
+		t.Fatalf("rolled back %+v", res.Rows)
+	}
+	mustExec(t, eng, `BEGIN`)
+	mustExec(t, eng, `INSERT INTO account VALUES (1, 'Ada')`)
+	if _, err := eng.Exec(`INSERT INTO account VALUES (1, 'Bea')`); !errors.Is(err, storage.ErrDuplicate) {
+		t.Fatalf("duplicate %v", err)
+	}
+	res = mustExec(t, eng, `SELECT name FROM account`)
+	if len(res.Rows) != 0 {
+		t.Fatalf("aborted %+v", res.Rows)
+	}
+	mustExec(t, eng, `INSERT INTO account VALUES (1, 'Ada')`)
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Size() != storage.PageSize {
+		t.Fatalf("file size %d", info.Size())
+	}
+	if err := pager.Close(); err != nil {
+		t.Fatal(err)
+	}
+	pager, err = storage.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool, err = storage.NewPool(pager, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eng, err = Open(pool, pager)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res = mustExec(t, eng, `SELECT name FROM account WHERE id = 1`)
+	if len(res.Rows) != 1 || string(res.Rows[0][0].Text) != "Ada" {
+		t.Fatalf("replay %+v", res.Rows)
+	}
+	if err := pager.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
 

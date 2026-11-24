@@ -29,12 +29,14 @@ type frame struct {
 // Pool caches pages in a fixed number of frames.
 // A pinned page is not evicted. A dirty page is written before its frame is reused.
 type Pool struct {
-	pager *Pager
-	cap   int
-	items map[uint32]*frame
-	head  *frame
-	tail  *frame
-	stats PoolStats
+	pager   *Pager
+	cap     int
+	items   map[uint32]*frame
+	head    *frame
+	tail    *frame
+	stats   PoolStats
+	txn     *Txn
+	nextTxn uint64
 }
 
 // NewPool caches at most capacity pages from pager.
@@ -49,8 +51,24 @@ func NewPool(pager *Pager, capacity int) (*Pool, error) {
 	}, nil
 }
 
+// PageCount is the number of pages visible to the caller, including a transaction's private pages.
+func (p *Pool) PageCount() uint32 {
+	if p.txn != nil {
+		return p.txn.limit()
+	}
+	return p.pager.pageCount
+}
+
 // Fetch returns a cached page and pins it. The caller must Unpin it.
+// Inside a transaction the returned page is a private copy.
 func (p *Pool) Fetch(id uint32) (*Page, error) {
+	if p.txn != nil {
+		return p.txn.fetch(id)
+	}
+	return p.fetchShared(id)
+}
+
+func (p *Pool) fetchShared(id uint32) (*Page, error) {
 	if f, ok := p.items[id]; ok {
 		p.stats.Hits++
 		f.pin++
@@ -76,6 +94,9 @@ func (p *Pool) Fetch(id uint32) (*Page, error) {
 
 // Adopt caches a page the pager just created and pins it.
 func (p *Pool) Adopt(pg *Page) error {
+	if p.txn != nil {
+		return p.txn.adopt(pg)
+	}
 	if pg == nil || len(pg.data) != PageSize {
 		return ErrCorrupt
 	}
@@ -100,6 +121,19 @@ func (p *Pool) Adopt(pg *Page) error {
 
 // Unpin releases one pin. The page stays cached.
 func (p *Pool) Unpin(id uint32) error {
+	if p.txn != nil {
+		if _, ok := p.txn.pages[id]; ok {
+			if p.txn.pins[id] == 0 {
+				return ErrPoolFull
+			}
+			p.txn.pins[id]--
+			return nil
+		}
+	}
+	return p.unpinShared(id)
+}
+
+func (p *Pool) unpinShared(id uint32) error {
 	f, ok := p.items[id]
 	if !ok || f.pin == 0 {
 		return ErrPoolFull
@@ -110,6 +144,13 @@ func (p *Pool) Unpin(id uint32) error {
 
 // MarkDirty remembers that the pinned page differs from the file.
 func (p *Pool) MarkDirty(id uint32) error {
+	if p.txn != nil {
+		if _, ok := p.txn.pages[id]; !ok {
+			return ErrNotFound
+		}
+		p.txn.dirty[id] = true
+		return nil
+	}
 	f, ok := p.items[id]
 	if !ok {
 		return ErrNotFound
@@ -124,7 +165,7 @@ func (p *Pool) Store(pg *Page) error {
 		return ErrCorrupt
 	}
 	id := pg.ID()
-	if id == 0 || id >= p.pager.pageCount {
+	if id == 0 || id >= p.PageCount() {
 		return ErrPageRange
 	}
 	frame, err := p.Fetch(id)
@@ -184,6 +225,9 @@ func (p *Pool) Drop(id uint32) error {
 
 // Release drops a cached page and returns it to the free list.
 func (p *Pool) Release(id uint32) error {
+	if p.txn != nil {
+		return p.txn.free(id)
+	}
 	if err := p.Drop(id); err != nil {
 		return err
 	}
@@ -191,6 +235,21 @@ func (p *Pool) Release(id uint32) error {
 		return err
 	}
 	return p.pager.Free(id)
+}
+
+func (p *Pool) install(image []byte) {
+	id := binary.BigEndian.Uint32(image[offPageID:])
+	data := append([]byte(nil), image...)
+	if f, ok := p.items[id]; ok {
+		f.data = data
+		f.dirty = true
+		p.moveFront(f)
+		return
+	}
+	f := &frame{id: id, data: data, dirty: true}
+	p.items[id] = f
+	p.pushFront(f)
+	p.stats.Resident = len(p.items)
 }
 
 func (p *Pool) evict() error {

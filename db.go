@@ -27,6 +27,12 @@ var (
 
 	// ErrClosed means the database has been closed.
 	ErrClosed = storage.ErrClosed
+
+	// ErrNoTxn means commit or rollback was used with no transaction.
+	ErrNoTxn = storage.ErrNoTxn
+
+	// ErrTxnOpen means a transaction is already open.
+	ErrTxnOpen = storage.ErrTxnOpen
 )
 
 // PageSize is the fixed size of every database page.
@@ -112,16 +118,55 @@ func (db *DB) Flush() error {
 	return db.pool.Flush()
 }
 
-// Close writes dirty pages, syncs the file, and releases it.
+// Begin starts a transaction that stays open until Commit or Rollback.
+func (db *DB) Begin() error {
+	if db.closed {
+		return ErrClosed
+	}
+	return db.pool.BeginExplicit()
+}
+
+// Commit writes the transaction to the log and syncs the log.
+func (db *DB) Commit() error {
+	if db.closed {
+		return ErrClosed
+	}
+	return db.pool.Commit()
+}
+
+// Rollback discards the open transaction.
+func (db *DB) Rollback() error {
+	if db.closed {
+		return ErrClosed
+	}
+	if err := db.pool.Rollback(); err != nil {
+		return err
+	}
+	return db.eng.Reload()
+}
+
+// Checkpoint writes committed pages into the database file and clears the log.
+func (db *DB) Checkpoint() error {
+	if db.closed {
+		return ErrClosed
+	}
+	return db.pool.Checkpoint()
+}
+
+// Close writes committed pages, clears the log, and releases the file.
+// An open transaction is discarded.
 func (db *DB) Close() error {
 	if db.closed {
 		return nil
 	}
 	db.closed = true
-	flushErr := db.pool.Flush()
+	if db.pool.Active() {
+		_ = db.pool.Rollback()
+	}
+	checkErr := db.pool.Checkpoint()
 	closeErr := db.p.Close()
-	if flushErr != nil {
-		return flushErr
+	if checkErr != nil {
+		return checkErr
 	}
 	return closeErr
 }

@@ -36,7 +36,7 @@ func CreateTable(pool *Pool, cols []Column) (*Table, error) {
 	if err := validateColumns(cols); err != nil {
 		return nil, err
 	}
-	pg, err := pool.pager.Allocate()
+	pg, err := pool.Allocate()
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +172,7 @@ func (t *Table) Scan(fn func(RowID, []Value) error) error {
 	id := t.first
 	seen := map[uint32]bool{}
 	for id != 0 {
-		if seen[id] || id >= t.pool.pager.pageCount {
+		if seen[id] || id >= t.pool.PageCount() {
 			return ErrCorrupt
 		}
 		seen[id] = true
@@ -238,7 +238,7 @@ func (t *Table) insertRecord(rec []byte, skip uint32) (RowID, error) {
 		t.pool.Unpin(id)
 		id = next
 	}
-	pg, err := t.pool.pager.Allocate()
+	pg, err := t.pool.Allocate()
 	if err != nil {
 		return RowID{}, err
 	}

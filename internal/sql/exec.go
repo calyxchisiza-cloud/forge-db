@@ -64,11 +64,75 @@ func Open(pool *storage.Pool, pager *storage.Pager) (*Engine, error) {
 }
 
 // Exec parses and runs one statement.
+// Outside an explicit transaction the statement commits, or rolls back, before Exec returns.
 func (e *Engine) Exec(src string) (*Result, error) {
 	stmt, err := parse(src)
 	if err != nil {
 		return nil, err
 	}
+	switch stmt.(type) {
+	case beginStmt:
+		return e.begin()
+	case commitStmt:
+		return e.commit()
+	case rollbackStmt:
+		return e.rollback()
+	}
+	joined := e.pool.Active()
+	if !joined {
+		if err := e.pool.Begin(); err != nil {
+			return nil, err
+		}
+	}
+	res, err := e.execOne(stmt)
+	if err != nil {
+		e.pool.Rollback()
+		if rerr := e.reload(); rerr != nil {
+			return nil, rerr
+		}
+		return nil, err
+	}
+	if !joined {
+		if err := e.pool.Commit(); err != nil {
+			e.pool.Rollback()
+			_ = e.reload()
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (e *Engine) begin() (*Result, error) {
+	if err := e.pool.BeginExplicit(); err != nil {
+		return nil, err
+	}
+	return &Result{}, nil
+}
+
+func (e *Engine) commit() (*Result, error) {
+	if !e.pool.Explicit() {
+		return nil, storage.ErrNoTxn
+	}
+	if err := e.pool.Commit(); err != nil {
+		return nil, err
+	}
+	return &Result{}, nil
+}
+
+func (e *Engine) rollback() (*Result, error) {
+	if !e.pool.Explicit() {
+		return nil, storage.ErrNoTxn
+	}
+	if err := e.pool.Rollback(); err != nil {
+		return nil, err
+	}
+	if err := e.reload(); err != nil {
+		return nil, err
+	}
+	return &Result{}, nil
+}
+
+func (e *Engine) execOne(stmt statement) (*Result, error) {
 	switch stmt := stmt.(type) {
 	case createStmt:
 		return e.create(stmt)
@@ -83,6 +147,29 @@ func (e *Engine) Exec(src string) (*Result, error) {
 	default:
 		return nil, ErrSyntax
 	}
+}
+
+// Reload rebuilds table state from the last committed pages.
+func (e *Engine) Reload() error { return e.reload() }
+
+func (e *Engine) reload() error {
+	e.tables = map[string]*relation{}
+	e.entries = nil
+	e.catalog = e.pager.Catalog()
+	if e.catalog == 0 {
+		return nil
+	}
+	entries, err := storage.LoadCatalog(e.pool, e.catalog)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if _, err := e.openRelation(entry); err != nil {
+			return err
+		}
+	}
+	e.entries = entries
+	return nil
 }
 
 func (e *Engine) create(stmt createStmt) (*Result, error) {
@@ -138,10 +225,7 @@ func (e *Engine) create(stmt createStmt) (*Result, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := e.pager.SetCatalog(id); err != nil {
-			return nil, err
-		}
-		if err := e.pool.Drop(0); err != nil {
+		if err := e.pool.SetCatalog(id); err != nil {
 			return nil, err
 		}
 		e.catalog = id

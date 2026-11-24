@@ -83,6 +83,10 @@ A leaf key is a 2-byte length, the key bytes, a 4-byte row page, and a 2-byte sl
 
 A schema catalog is page type 8. Offset 24 is the table count. Each record is a name length byte, the name, the table header page, the index catalog page, and the primary-key column number.
 
+## Log
+
+The log is the database path plus `.wal`. Each record is a 4-byte length, a CRC-32 of the payload, and the payload. A page record holds the transaction, the log sequence number, the page number, and the 4096-byte page. A commit record ends the transaction. Recovery ignores a short final record and a commit that never arrived. A bad checksum with more bytes after it makes the file unreadable. A page whose stored sequence number is already at least the record's number is left as it is.
+
 ## Free page
 
 The first four payload bytes are the next free page identifier. Zero ends the list. The rest of a free page is zero. Opening the file walks the list and rejects a cycle, a missing page, or a link to a page that is not free.

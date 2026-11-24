@@ -12,7 +12,7 @@ type CatalogEntry struct {
 
 // CreateCatalog allocates the schema page and stores entries on it.
 func CreateCatalog(pool *Pool, entries []CatalogEntry) (uint32, error) {
-	pg, err := pool.pager.Allocate()
+	pg, err := pool.Allocate()
 	if err != nil {
 		return 0, err
 	}

@@ -59,11 +59,18 @@ type literal struct {
 	text    []byte
 }
 
-func (createStmt) statement() {}
-func (insertStmt) statement() {}
-func (selectStmt) statement() {}
-func (updateStmt) statement() {}
-func (deleteStmt) statement() {}
+type beginStmt struct{}
+type commitStmt struct{}
+type rollbackStmt struct{}
+
+func (createStmt) statement()   {}
+func (insertStmt) statement()   {}
+func (selectStmt) statement()   {}
+func (updateStmt) statement()   {}
+func (deleteStmt) statement()   {}
+func (beginStmt) statement()    {}
+func (commitStmt) statement()   {}
+func (rollbackStmt) statement() {}
 
 func parse(src string) (statement, error) {
 	toks, err := lex(src)
@@ -130,6 +137,15 @@ func (p *parser) ident() (string, error) {
 
 func (p *parser) statement() (statement, error) {
 	switch {
+	case p.keyword("begin"):
+		p.next()
+		return beginStmt{}, nil
+	case p.keyword("commit"):
+		p.next()
+		return commitStmt{}, nil
+	case p.keyword("rollback"):
+		p.next()
+		return rollbackStmt{}, nil
 	case p.keyword("create"):
 		return p.create()
 	case p.keyword("insert"):

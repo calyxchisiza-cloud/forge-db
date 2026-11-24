@@ -68,14 +68,14 @@ type ixNode struct {
 
 // CreateIndex stores an empty B+Tree and returns its catalog page.
 func CreateIndex(pool *Pool) (*Index, error) {
-	meta, err := pool.pager.Allocate()
+	meta, err := pool.Allocate()
 	if err != nil {
 		return nil, err
 	}
 	if err := pool.Adopt(meta); err != nil {
 		return nil, err
 	}
-	rootPage, err := pool.pager.Allocate()
+	rootPage, err := pool.Allocate()
 	if err != nil {
 		pool.Unpin(meta.ID())
 		return nil, err
@@ -120,7 +120,7 @@ func OpenIndex(pool *Pool, meta uint32) (*Index, error) {
 		return nil, ErrSchema
 	}
 	root := binary.BigEndian.Uint32(pg.data[indexRootOff:])
-	if root == 0 || root >= pool.pager.pageCount {
+	if root == 0 || root >= pool.PageCount() {
 		return nil, ErrCorrupt
 	}
 	return &Index{pool: pool, meta: meta, root: root}, nil
@@ -698,7 +698,7 @@ func (ix *Index) retarget(n *ixNode) error {
 }
 
 func (ix *Index) newNode(leaf bool) (*ixNode, error) {
-	pg, err := ix.pool.pager.Allocate()
+	pg, err := ix.pool.Allocate()
 	if err != nil {
 		return nil, err
 	}

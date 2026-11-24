@@ -52,6 +52,7 @@ var (
 // It is safe for one caller. Allocation is made durable by Close or Flush.
 type Pager struct {
 	f         *os.File
+	path      string
 	pageCount uint32
 	freeHead  uint32
 	nextLSN   uint64
@@ -68,7 +69,7 @@ func Create(path string) (*Pager, error) {
 	if err != nil {
 		return nil, err
 	}
-	p := &Pager{f: f, pageCount: 1, freeHead: 0, nextLSN: 1}
+	p := &Pager{f: f, path: path, pageCount: 1, freeHead: 0, nextLSN: 1}
 	if err := p.writeHeader(); err != nil {
 		f.Close()
 		os.Remove(path)
@@ -81,6 +82,10 @@ func Create(path string) (*Pager, error) {
 func Open(path string) (*Pager, error) {
 	f, err := os.OpenFile(path, os.O_RDWR, 0)
 	if err != nil {
+		return nil, err
+	}
+	if err := replayWAL(f, path); err != nil {
+		f.Close()
 		return nil, err
 	}
 	info, err := f.Stat()
@@ -130,6 +135,7 @@ func Open(path string) (*Pager, error) {
 	}
 	p := &Pager{
 		f:         f,
+		path:      path,
 		pageCount: count,
 		freeHead:  freeHead,
 		nextLSN:   binary.BigEndian.Uint64(buf[offNextLSN:]),
@@ -248,6 +254,13 @@ func (p *Pager) Flush() error {
 		return err
 	}
 	return p.f.Sync()
+}
+
+func (p *Pager) adoptHeader(buf []byte) {
+	p.pageCount = binary.BigEndian.Uint32(buf[offPageCount:])
+	p.freeHead = binary.BigEndian.Uint32(buf[offFreeHead:])
+	p.nextLSN = binary.BigEndian.Uint64(buf[offNextLSN:])
+	p.catalog = binary.BigEndian.Uint32(buf[offCatalog:])
 }
 
 // Close flushes the file and releases it. A second call does nothing.
