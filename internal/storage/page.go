@@ -25,9 +25,11 @@ const (
 	offFreeHead  = 40
 	offNextLSN   = 44
 
-	pageTypeHeader uint16 = 1
-	pageTypeFree   uint16 = 2
-	pageTypeData   uint16 = 3
+	pageTypeHeader  uint16 = 1
+	pageTypeFree    uint16 = 2
+	pageTypeData    uint16 = 3
+	pageTypeSlotted uint16 = 4
+	pageTypeTable   uint16 = 5
 )
 
 const magic = "FGDB"
