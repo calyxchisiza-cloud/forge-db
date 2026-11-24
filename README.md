@@ -1,6 +1,6 @@
 # ForgeDB
 
-Phase 1 is a pager. A database file is a sequence of 4 KB pages. Page 0 is the file header. Other pages hold caller bytes. Each page carries a checksum and its own page number.
+Phase 2 stores rows in slotted pages on top of a 4 KB pager. Page 0 is the file header. A table header page records the columns. Each row is an integer or a byte string, and either may be null.
 
 ```go
 db, err := forgedb.Create(path)
@@ -13,9 +13,9 @@ db, err = forgedb.Open(path)
 page, err = db.Read(1)
 ```
 
-`Close` flushes the file. Reopening checks the header, every free-list page, and each page checksum. A torn file, a bad checksum, or a page stored in the wrong slot is rejected. `Free` returns a page to a free list. The file header cannot be freed. The next `Allocate` reuses a free page before the file grows.
+`CreateTable` stores the column list. `Insert`, `Get`, `Update`, `Delete`, and `Scan` use a page number and a slot. A delete leaves that slot empty so later rows keep their identifiers. An update that no longer fits on the page moves to another page and returns the new identifier. A row larger than one page is rejected. Reopening the file reads the same rows.
 
-Records, a buffer pool, indexes, SQL, and the log are later phases. See [docs/architecture.md](docs/architecture.md) and [docs/storage-format.md](docs/storage-format.md).
+The pager still checks checksums, page numbers, and the free list. A buffer pool, indexes, SQL, and the log are later phases. See [docs/architecture.md](docs/architecture.md) and [docs/storage-format.md](docs/storage-format.md).
 
 ## Run
 
