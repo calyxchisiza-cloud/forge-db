@@ -24,6 +24,7 @@ const (
 	offPageCount = 36
 	offFreeHead  = 40
 	offNextLSN   = 44
+	offCatalog   = 52
 
 	pageTypeHeader  uint16 = 1
 	pageTypeFree    uint16 = 2
@@ -32,6 +33,7 @@ const (
 	pageTypeTable   uint16 = 5
 	pageTypeIndex   uint16 = 6
 	pageTypeNode    uint16 = 7
+	pageTypeCatalog uint16 = 8
 )
 
 const magic = "FGDB"

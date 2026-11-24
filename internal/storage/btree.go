@@ -23,6 +23,26 @@ const (
 	minIndexFill = (PageSize - nodeBody) / 2
 )
 
+// IndexKey encodes a primary-key value. Integer order is byte order of the two's-complement form.
+func IndexKey(col Type, v Value) ([]byte, error) {
+	if v.Null {
+		return nil, ErrSchema
+	}
+	switch col {
+	case TypeInteger:
+		buf := make([]byte, 8)
+		binary.BigEndian.PutUint64(buf, uint64(v.Int))
+		return buf, nil
+	case TypeText:
+		if len(v.Text) > maxKeyBytes {
+			return nil, ErrKeyTooLarge
+		}
+		return append([]byte(nil), v.Text...), nil
+	default:
+		return nil, ErrSchema
+	}
+}
+
 // Index maps a byte key to the page and slot of a row.
 // The catalog page keeps the current root, so a root split does not change MetaID.
 type Index struct {

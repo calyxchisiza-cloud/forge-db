@@ -1,7 +1,10 @@
 // Package forgedb is a single-file relational database.
 package forgedb
 
-import "forgedb/internal/storage"
+import (
+	"forgedb/internal/sql"
+	"forgedb/internal/storage"
+)
 
 var (
 	// ErrCorrupt means the file, a page checksum, or the free list is not valid.
@@ -33,6 +36,7 @@ const PageSize = storage.PageSize
 type DB struct {
 	p      *storage.Pager
 	pool   *storage.Pool
+	eng    *sql.Engine
 	closed bool
 }
 
@@ -65,7 +69,12 @@ func newDB(p *storage.Pager) (*DB, error) {
 		p.Close()
 		return nil, err
 	}
-	return &DB{p: p, pool: pool}, nil
+	eng, err := sql.Open(pool, p)
+	if err != nil {
+		p.Close()
+		return nil, err
+	}
+	return &DB{p: p, pool: pool, eng: eng}, nil
 }
 
 // Allocate reserves a data page. A free page is reused before the file grows.

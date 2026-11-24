@@ -1,6 +1,6 @@
 # ForgeDB architecture
 
-Phase 4 maps byte keys to a row with a B+Tree. Rows still live in slotted pages, and cached pages still stay in a fixed buffer pool. One caller uses the database. Later phases add SQL and a write-ahead log.
+Phase 5 runs one SQL statement at a time. A B+Tree stores each primary key, rows live in slotted pages, and cached pages stay in a fixed buffer pool. One caller uses the database. Later phases add a write-ahead log and concurrent readers.
 
 ## Now
 
@@ -17,10 +17,10 @@ Phase 4 maps byte keys to a row with a B+Tree. Rows still live in slotted pages,
 | Slots | Records grow forward. The slot directory grows backward. A deleted slot stays empty and can be reused. |
 | Pool | A fixed number of frames. Fetch pins a page. A pinned page stays resident. A dirty page is written before its frame is reused and on Flush. |
 | Index | A B+Tree of byte keys. Each key points at a page and slot. Delete borrows from a sibling or merges, and the tree can be checked. |
+| SQL | `CREATE TABLE`, `INSERT`, `SELECT`, `UPDATE`, and `DELETE` use literal values. One column is the primary key. A comparison with NULL is not true. |
 
 ## Later
 
-- Phase 5: SQL for one table at a time, without joins or expressions.
 - Phase 6: a write-ahead log of full page images, commit, rollback, and recovery.
 - Phase 7: many readers and one writer.
 - Phase 8: benchmarks, a statement shell, and the v1 notes.

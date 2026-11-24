@@ -55,6 +55,7 @@ type Pager struct {
 	pageCount uint32
 	freeHead  uint32
 	nextLSN   uint64
+	catalog   uint32
 	closed    bool
 }
 
@@ -122,11 +123,17 @@ func Open(path string) (*Pager, error) {
 		f.Close()
 		return nil, ErrCorrupt
 	}
+	catalog := binary.BigEndian.Uint32(buf[offCatalog:])
+	if catalog >= count {
+		f.Close()
+		return nil, ErrCorrupt
+	}
 	p := &Pager{
 		f:         f,
 		pageCount: count,
 		freeHead:  freeHead,
 		nextLSN:   binary.BigEndian.Uint64(buf[offNextLSN:]),
+		catalog:   catalog,
 	}
 	if err := p.checkFreeList(); err != nil {
 		f.Close()
@@ -262,6 +269,26 @@ func (p *Pager) PageCount() uint32 {
 	return p.pageCount
 }
 
+// Catalog is the schema page, or zero when the database has no tables.
+func (p *Pager) Catalog() uint32 { return p.catalog }
+
+// SetCatalog records the schema page in the file header.
+func (p *Pager) SetCatalog(id uint32) error {
+	if err := p.usable(); err != nil {
+		return err
+	}
+	if id == 0 || id >= p.pageCount {
+		return ErrPageRange
+	}
+	previous := p.catalog
+	p.catalog = id
+	if err := p.writeHeader(); err != nil {
+		p.catalog = previous
+		return err
+	}
+	return nil
+}
+
 func (p *Pager) usable() error {
 	if p.closed {
 		return ErrClosed
@@ -360,6 +387,7 @@ func (p *Pager) writeHeader() error {
 	binary.BigEndian.PutUint32(buf[offPageCount:], p.pageCount)
 	binary.BigEndian.PutUint32(buf[offFreeHead:], p.freeHead)
 	binary.BigEndian.PutUint64(buf[offNextLSN:], p.nextLSN)
+	binary.BigEndian.PutUint32(buf[offCatalog:], p.catalog)
 	putChecksum(buf)
 	return p.writeRaw(buf)
 }
