@@ -25,9 +25,11 @@ const (
 	offFreeHead  = 40
 	offNextLSN   = 44
 
-	pageTypeHeader uint16 = 1
-	pageTypeFree   uint16 = 2
-	pageTypeData   uint16 = 3
+	pageTypeHeader  uint16 = 1
+	pageTypeFree    uint16 = 2
+	pageTypeData    uint16 = 3
+	pageTypeSlotted uint16 = 4
+	pageTypeTable   uint16 = 5
 )
 
 const magic = "FGDB"
@@ -54,6 +56,13 @@ func newDataPage(id uint32) *Page {
 	binary.BigEndian.PutUint16(buf[offType:], pageTypeData)
 	putChecksum(buf)
 	return &Page{data: buf}
+}
+
+// ClonePage returns a detached copy of a page.
+func ClonePage(pg *Page) *Page {
+	data := make([]byte, PageSize)
+	copy(data, pg.data)
+	return &Page{data: data}
 }
 
 func pageTypeOf(buf []byte) uint16 {
