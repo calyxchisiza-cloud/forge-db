@@ -102,16 +102,75 @@ func (l *library) names() ([]string, error) {
 	}
 	var names []string
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".db") {
+		if entry.IsDir() || len(entry.Name()) < 4 || !strings.HasSuffix(strings.ToLower(entry.Name()), ".db") {
 			continue
 		}
-		name := strings.TrimSuffix(entry.Name(), ".db")
-		if safeIdent(name) {
+		name := entry.Name()[:len(entry.Name())-3]
+		if name != "" {
 			names = append(names, name)
 		}
 	}
 	sort.Strings(names)
 	return names, nil
+}
+
+type dbCard struct {
+	Name      string   `json:"name"`
+	Bytes     int64    `json:"bytes"`
+	PageCount uint32   `json:"pageCount"`
+	Tables    []string `json:"tables"`
+	Error     string   `json:"error,omitempty"`
+}
+
+func (l *library) catalog() (string, string, []dbCard, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	names, err := l.names()
+	if err != nil {
+		return "", "", nil, err
+	}
+	cards := make([]dbCard, 0, len(names))
+	for _, name := range names {
+		cards = append(cards, l.summarize(name))
+	}
+	return l.dir, l.name, cards, nil
+}
+
+func (l *library) summarize(name string) dbCard {
+	card := dbCard{Name: name, Tables: []string{}}
+	path := filepath.Join(l.dir, name+".db")
+	if info, err := os.Stat(path); err == nil {
+		card.Bytes = info.Size()
+	}
+	if !safeIdent(name) {
+		card.Error = "database name is not an identifier"
+		return card
+	}
+	var snap *forgedb.Snapshot
+	var err error
+	if name == l.name && l.db != nil {
+		snap, err = l.db.Inspect()
+	} else {
+		db, openErr := forgedb.Open(path)
+		if openErr != nil {
+			card.Error = openErr.Error()
+			return card
+		}
+		snap, err = db.Inspect()
+		db.Close()
+	}
+	if err != nil {
+		card.Error = err.Error()
+		return card
+	}
+	card.PageCount = snap.PageCount
+	if logical := int64(snap.PageCount) * int64(snap.PageSize); logical > card.Bytes {
+		card.Bytes = logical
+	}
+	for _, table := range snap.Tables {
+		card.Tables = append(card.Tables, table.Name)
+	}
+	return card
 }
 
 func (l *library) open(name string, create bool) error {
@@ -170,16 +229,12 @@ func handler(lib *library) http.Handler {
 	mux.HandleFunc("/api/databases", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			names, err := lib.names()
+			dir, current, databases, err := lib.catalog()
 			if err != nil {
 				writeErr(w, http.StatusInternalServerError, err)
 				return
 			}
-			lib.mu.Lock()
-			current := lib.name
-			dir := lib.dir
-			lib.mu.Unlock()
-			writeJSON(w, http.StatusOK, map[string]any{"dir": dir, "current": current, "names": names})
+			writeJSON(w, http.StatusOK, map[string]any{"dir": dir, "current": current, "databases": databases})
 		case http.MethodPost:
 			var req struct {
 				Name string `json:"name"`

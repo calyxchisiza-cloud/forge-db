@@ -69,6 +69,21 @@ func TestManageDatabaseFromThePage(t *testing.T) {
 	if rec := post("/api/databases", `{"name":"shop"}`); rec.Code != http.StatusBadRequest {
 		t.Fatalf("duplicate %d", rec.Code)
 	}
+	res = httptest.NewRecorder()
+	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/databases", nil))
+	var listed struct {
+		Current   string `json:"current"`
+		Databases []struct {
+			Name   string   `json:"name"`
+			Tables []string `json:"tables"`
+		} `json:"databases"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &listed); err != nil {
+		t.Fatal(err)
+	}
+	if listed.Current != "shop" || len(listed.Databases) != 1 || listed.Databases[0].Name != "shop" || len(listed.Databases[0].Tables) != 1 || listed.Databases[0].Tables[0] != "account" {
+		t.Fatalf("catalog %+v", listed)
+	}
 }
 
 func TestOpenExistingDatabaseFlag(t *testing.T) {

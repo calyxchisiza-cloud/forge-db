@@ -25,7 +25,7 @@ go run ./cmd/shell -db forge.db
 go run ./cmd/ui
 ```
 
-The demo prints `Hello ForgeDB`. The shell reads one statement per line. `.quit` closes the file. The page listens on `127.0.0.1:8091`. It creates database files in the current folder, then tables and rows. `go run ./cmd/ui -db forge.db` opens that file first.
+The demo prints `Hello ForgeDB`. The shell reads one statement per line. `.quit` closes the file. The page listens on `127.0.0.1:8091` and lists every database file in the current folder. Opening one shows its tables, keys, and rows. `go run ./cmd/ui -db forge.db` opens that file first.
 
 ## Test
 

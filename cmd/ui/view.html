@@ -6,238 +6,339 @@
   <title>ForgeDB</title>
   <style>
     :root {
-      --ink: #14211c;
-      --muted: #2c463c;
-      --ground: #dfe8e3;
-      --paper: #f6faf7;
-      --line: #9eb0a6;
-      --accent: #0c6b52;
-      --accent-ink: #f4fbf7;
-      --warn: #6e2e24;
-      --warn-ground: #f3e4df;
-      --focus: #0c6b52;
+      --ink: #152028;
+      --muted: #3e515c;
+      --ground: #d7dee3;
+      --rail: #1c2428;
+      --rail-ink: #f4f7f8;
+      --rail-muted: #b7c4cb;
+      --paper: #f5f8f9;
+      --line: #c5d0d6;
+      --wax: #8f2d24;
+      --wax-ink: #fff7f4;
+      --wash: #e7eef1;
+      --mark: #f6e6e3;
+      --focus: #8f2d24;
       color-scheme: light;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; }
     body {
       min-height: 100%;
+      display: grid;
+      grid-template-columns: 17.5rem minmax(0, 1fr);
       background: var(--ground);
       color: var(--ink);
       font: 16px/1.45 "Segoe UI", "Helvetica Neue", sans-serif;
-      caret-color: var(--accent);
+      caret-color: var(--wax);
     }
-    ::selection { background: #b7ddd0; color: var(--ink); }
+    ::selection { background: #e7c3be; color: var(--ink); }
     :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
     button, input, select { font: inherit; color: inherit; }
-    header {
+    #rail {
+      background: var(--rail);
+      color: var(--rail-ink);
       display: flex;
-      justify-content: space-between;
-      gap: 1.5rem;
-      align-items: end;
-      padding: 1.25rem 1.5rem 0.75rem;
+      flex-direction: column;
+      min-height: 100vh;
+      padding: 1.25rem 1rem 1rem;
     }
-    h1 {
+    .brand {
       margin: 0;
-      font-size: 1.75rem;
+      font-size: 1.35rem;
       font-weight: 650;
       letter-spacing: -0.03em;
-      line-height: 1.1;
     }
-    #filemeta { margin: 0.35rem 0 0; max-width: 70ch; color: var(--muted); }
-    #home, .layout { padding: 0.5rem 1.5rem 1.5rem; }
-    #home { max-width: 40rem; }
-    .panel, nav, main {
-      background: var(--paper);
-      border: 1px solid var(--line);
+    #folder {
+      margin: 0.35rem 0 1.25rem;
+      color: var(--rail-muted);
+      font-size: 0.78rem;
+      overflow-wrap: anywhere;
+    }
+    #rail h2, .detail h2, #catalog h1, #studio h1 {
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    #rail h2 { margin: 0 0 0.55rem; font-size: 0.95rem; }
+    #dblist { display: flex; flex-direction: column; gap: 0.35rem; min-height: 0; overflow: auto; }
+    .db-button, .table-button {
+      width: 100%;
+      text-align: left;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--rail-ink);
       border-radius: 2px;
+      padding: 0.55rem 0.65rem;
+      cursor: pointer;
     }
-    .panel, nav, main { padding: 0.9rem 1rem 1rem; }
-    h2 { margin: 0 0 0.75rem; font-size: 0.95rem; font-weight: 650; }
-    .layout {
-      display: grid;
-      grid-template-columns: 18rem minmax(0, 1fr);
-      gap: 1rem;
-      min-height: calc(100vh - 6.5rem);
+    .db-button strong, .table-button strong { display: block; font-weight: 650; }
+    .db-button span, .table-button span { display: block; color: var(--rail-muted); font-size: 0.8rem; }
+    .db-button:hover, .table-button:hover { background: #2a363c; }
+    .db-button[aria-current="true"] {
+      background: var(--wax);
+      color: var(--wax-ink);
     }
-    form.row, .column-line, .value-line {
+    .db-button[aria-current="true"] span { color: var(--wax-ink); }
+    #newdb {
       display: flex;
-      flex-wrap: wrap;
-      gap: 0.45rem;
-      align-items: center;
-      margin-bottom: 0.6rem;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid #3a474d;
     }
-    input, select {
+    #newdb label { font-size: 0.78rem; color: var(--rail-muted); }
+    input::placeholder { color: #4d616c; }
+    #rail input, .detail input, .detail select, #catalog input {
       background: var(--paper);
+      color: var(--ink);
       border: 1px solid var(--line);
       border-radius: 2px;
       padding: 0.45rem 0.55rem;
       min-width: 0;
     }
-    input[type="text"], input:not([type]) { flex: 1; }
-    button {
-      border: 1px solid var(--line);
-      background: transparent;
+    #rail button.primary, .detail button.primary, #back {
+      background: var(--wax);
+      border: 1px solid var(--wax);
+      color: var(--wax-ink);
       border-radius: 2px;
-      padding: 0.45rem 0.7rem;
+      padding: 0.5rem 0.75rem;
       cursor: pointer;
     }
-    button.primary, #back {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: var(--accent-ink);
-    }
+    button { border: 1px solid var(--line); background: var(--paper); border-radius: 2px; padding: 0.4rem 0.65rem; cursor: pointer; }
+    button:hover { border-color: var(--wax); }
     button:disabled { opacity: 0.55; cursor: wait; }
-    button:hover { border-color: var(--accent); }
-    #dblist, #tables { display: flex; flex-direction: column; gap: 0.35rem; }
-    .table-button, .page-button { text-align: left; }
-    .table-button strong, .db-button { display: block; }
-    .table-button span, .page-button small { color: var(--muted); font-size: 0.85rem; }
-    .table-button[aria-current="true"], .db-button[aria-current="true"] {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: var(--accent-ink);
+    #railstatus, #status { min-height: 1.2rem; margin: 0.5rem 0 0; font-size: 0.85rem; }
+    #railstatus { color: #f0c7c2; }
+    #status.error, #railstatus.error { color: var(--wax); background: var(--mark); padding: 0.4rem 0.55rem; }
+    #railstatus.error { color: #fff7f4; background: #6e2e24; }
+    #stage { min-width: 0; padding: 1.25rem 1.5rem 2rem; }
+    #catalog h1, #studio h1 { margin: 0; font-size: 1.85rem; line-height: 1.1; }
+    #catalogmeta, #filemeta { margin: 0.4rem 0 0; color: var(--muted); max-width: 70ch; }
+    .sheet, .detail, nav.tables {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 2px;
     }
-    .table-button[aria-current="true"] span { color: var(--accent-ink); }
-    .db-button { width: 100%; text-align: left; padding: 0.7rem 0.75rem; }
-    #pages { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 1rem; }
-    .page-button { min-width: 4.5rem; font-variant-numeric: tabular-nums; }
-    .page-button small { display: block; font-size: 0.75rem; }
-    .page-button.mark { background: #d5ebe3; border-color: var(--accent); }
-    .scroll { overflow: auto; max-height: 22rem; }
-    table { border-collapse: collapse; width: max-content; max-width: 100%; }
+    .sheet { margin-top: 1rem; overflow: auto; padding: 0.5rem; }
+    table { border-collapse: collapse; width: 100%; }
     th, td {
-      padding: 0.4rem 0.7rem;
+      padding: 0.55rem 0.75rem;
       border-bottom: 1px solid var(--line);
       text-align: left;
       vertical-align: middle;
-      white-space: nowrap;
     }
-    th { font-weight: 650; position: sticky; top: 0; background: var(--paper); }
-    td.num { font-variant-numeric: tabular-nums; }
+    th { font-weight: 650; font-size: 0.85rem; color: var(--muted); background: var(--paper); position: sticky; top: 0; }
+    td.num, th.num { font-variant-numeric: tabular-nums; }
+    tbody tr:hover { background: var(--wash); }
+    tr.here { background: var(--mark); }
     td.nil { color: var(--muted); }
-    td.actions { white-space: nowrap; }
-    #note, #status { margin: 0.75rem 0 0; color: var(--muted); }
-    #status.error { color: var(--warn); background: var(--warn-ground); padding: 0.45rem 0.6rem; }
-    fieldset {
-      border: 1px solid var(--line);
-      margin: 0 0 1rem;
-      padding: 0.7rem;
+    #directory td:first-child { font-weight: 650; }
+    .openfile {
+      position: relative;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 1rem;
+      margin: -1.25rem -1.5rem 1.1rem;
+      padding: 0.85rem 1.5rem 1rem;
+      background: var(--paper);
+      border-bottom: 1px solid var(--line);
     }
-    legend { padding: 0 0.3rem; font-weight: 650; }
-    .nullbox { display: flex; gap: 0.3rem; align-items: center; color: var(--muted); }
-    #addrow { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: end; margin-bottom: 0.8rem; }
-    #addrow > span:first-child { flex-basis: 100%; font-weight: 650; color: var(--ink); }
-    #addrow[hidden] { display: none; }
-    .field { display: flex; flex-direction: column; gap: 0.25rem; min-width: 8rem; }
-    .field > span { font-size: 0.78rem; color: var(--muted); }
-    #grid.reveal { animation: open 180ms cubic-bezier(0.16, 1, 0.3, 1); }
-    @keyframes open {
-      from { clip-path: inset(0 0 100% 0); }
-      to { clip-path: inset(0 0 0 0); }
+    .openfile::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      height: 4px;
+      background: var(--wax);
+      transform-origin: left center;
+      animation: stamp 240ms cubic-bezier(0.16, 1, 0.3, 1);
     }
+    @keyframes stamp { from { transform: scaleX(0); } to { transform: scaleX(1); } }
     @media (prefers-reduced-motion: reduce) {
-      #grid.reveal { animation: none; }
+      .openfile::before { animation: none; }
     }
+    #studio { position: relative; }
+    .work {
+      display: grid;
+      grid-template-columns: 15rem minmax(0, 1fr);
+      gap: 1rem;
+      align-items: start;
+    }
+    nav.tables { padding: 0.9rem; }
+    .table-button { color: var(--ink); }
+    .table-button span { color: var(--muted); }
+    .table-button:hover { background: var(--wash); }
+    .table-button[aria-current="true"] { background: var(--wax); border-color: var(--wax); color: var(--wax-ink); }
+    .table-button[aria-current="true"] span { color: var(--wax-ink); }
+    #tables { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.9rem; }
+    fieldset { border: 1px solid var(--line); margin: 0; padding: 0.7rem; }
+    legend { padding: 0 0.3rem; font-weight: 650; }
+    .column-line, #addrow, #stmt { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: end; }
+    .column-line { margin-bottom: 0.4rem; }
+    .nullbox { display: flex; gap: 0.3rem; align-items: center; font-size: 0.8rem; color: var(--muted); }
+    .detail { padding: 1rem 1.1rem 1.15rem; }
+    .detail h2 { margin: 0 0 0.35rem; font-size: 1.05rem; }
+    .lead { margin: 0 0 0.75rem; color: var(--muted); max-width: 68ch; }
+    .scroll { overflow: auto; max-height: 18rem; border: 1px solid var(--line); padding: 0.35rem 0.5rem; }
+    .scroll table { width: max-content; min-width: 100%; }
+    #grid td, #grid th, #schema td, #schema th { white-space: nowrap; }
+    #rowshead { margin: 1.4rem 0 0.6rem; }
+    .field { display: flex; flex-direction: column; gap: 0.2rem; min-width: 8rem; }
+    .field > span { font-size: 0.78rem; color: var(--muted); }
+    #addrow { margin-bottom: 0.75rem; }
+    #note { margin: 0.6rem 0 0; color: var(--muted); }
+    details { margin-top: 1.1rem; }
+    summary { cursor: pointer; font-weight: 650; }
+    #stmt { margin-top: 0.6rem; }
+    #sql { flex: 1; min-width: 12rem; }
+    #result { margin-top: 0.7rem; overflow: auto; }
     ::-webkit-scrollbar { width: 10px; height: 10px; }
-    ::-webkit-scrollbar-thumb { background: var(--line); }
-    @media (max-width: 700px) {
-      header { flex-direction: column; align-items: start; }
-      .layout { grid-template-columns: 1fr; }
-      main { order: -1; }
-      #tables, #dblist { flex-direction: row; overflow-x: auto; }
-      .table-button, .db-button { min-width: 9rem; }
+    ::-webkit-scrollbar-thumb { background: #9aadb6; }
+    @media (max-width: 800px) {
+      body { display: block; }
+      #rail { min-height: 0; position: sticky; top: 0; z-index: 2; }
+      #dblist { flex-direction: row; overflow-x: auto; }
+      .db-button { min-width: 10rem; }
+      .openfile { margin: 0 0 1rem; padding: 0 0 0.8rem; }
+      .openfile::before { left: 0; }
+      .work { grid-template-columns: 1fr; }
+      #tables { flex-direction: row; overflow-x: auto; }
+      .table-button { min-width: 9rem; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <div>
-      <h1 id="filename">ForgeDB</h1>
-      <p id="filemeta">Choose a database or create one.</p>
-    </div>
-    <button id="back" type="button" hidden>All databases</button>
-  </header>
-  <section id="home">
-    <form id="newdb" class="row">
+  <aside id="rail">
+    <p class="brand">ForgeDB</p>
+    <p id="folder"></p>
+    <h2>Databases</h2>
+    <div id="dblist"></div>
+    <form id="newdb">
       <label for="dbname">New database</label>
-      <input id="dbname" name="name" required autocomplete="off" placeholder="shop">
+      <input id="dbname" required autocomplete="off" placeholder="shop">
       <button class="primary" type="submit">Create</button>
     </form>
-    <div class="panel">
-      <h2>Databases</h2>
-      <div id="dblist"></div>
-    </div>
-    <p id="homestatus" role="status"></p>
-  </section>
-  <div class="layout" id="workspace" hidden>
-    <nav>
-      <h2>Tables</h2>
-      <div id="tables"></div>
-      <form id="newtable">
-        <fieldset>
-          <legend>New table</legend>
-          <div class="row">
-            <label for="tablename">Name</label>
-            <input id="tablename" required autocomplete="off" placeholder="account">
-          </div>
-          <div id="coldefs"></div>
-          <div class="row">
-            <button type="button" id="addcol">Add column</button>
-            <button class="primary" type="submit">Create table</button>
-          </div>
-        </fieldset>
-      </form>
-    </nav>
-    <main>
-      <div id="pages"></div>
-      <h2 id="title">Rows</h2>
-      <form id="addrow" hidden></form>
-      <div class="scroll">
-        <table id="grid"></table>
+    <p id="railstatus" role="status"></p>
+  </aside>
+  <div id="stage">
+    <section id="catalog">
+      <h1>Databases</h1>
+      <p id="catalogmeta"></p>
+      <div class="sheet">
+        <table id="directory">
+          <thead>
+            <tr><th>Database</th><th>Tables</th><th class="num">Size</th><th class="num">Pages</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
-      <p id="note"></p>
-      <form id="stmt" class="row">
-        <label for="sql">Statement</label>
-        <input id="sql" autocomplete="off" spellcheck="false" placeholder="SELECT * FROM account">
-        <button id="run" type="submit">Run</button>
-      </form>
-      <p id="status" role="status"></p>
-    </main>
+    </section>
+    <section id="studio" hidden>
+      <header class="openfile">
+        <div>
+          <h1 id="filename">Database</h1>
+          <p id="filemeta"></p>
+        </div>
+        <button id="back" type="button">All databases</button>
+      </header>
+      <div class="work">
+        <nav class="tables" aria-label="Tables">
+          <h2>Tables</h2>
+          <div id="tables"></div>
+          <form id="newtable">
+            <fieldset>
+              <legend>New table</legend>
+              <div class="column-line">
+                <label for="tablename">Name</label>
+                <input id="tablename" required autocomplete="off" placeholder="account">
+              </div>
+              <div id="coldefs"></div>
+              <div class="column-line">
+                <button type="button" id="addcol">Add column</button>
+                <button class="primary" type="submit">Create table</button>
+              </div>
+            </fieldset>
+          </form>
+        </nav>
+        <div class="detail">
+          <h2>Structure</h2>
+          <p class="lead">Each table has one primary key. ForgeDB does not store foreign keys, so these tables are separate.</p>
+          <div class="scroll">
+            <table id="schema">
+              <thead><tr><th>Table</th><th>Column</th><th>Type</th><th>Key</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <h2 id="rowshead">Rows</h2>
+          <form id="addrow" hidden></form>
+          <div class="scroll"><table id="grid"></table></div>
+          <p id="note"></p>
+          <details>
+            <summary>Statement</summary>
+            <form id="stmt">
+              <label for="sql">Statement</label>
+              <input id="sql" autocomplete="off" spellcheck="false" placeholder="SELECT * FROM account">
+              <button id="run" type="submit">Run</button>
+            </form>
+          </details>
+          <p id="status" role="status"></p>
+          <div id="result"></div>
+        </div>
+      </div>
+    </section>
   </div>
   <script>
+    const folder = document.querySelector("#folder");
+    const dblist = document.querySelector("#dblist");
+    const railstatus = document.querySelector("#railstatus");
+    const catalog = document.querySelector("#catalog");
+    const catalogmeta = document.querySelector("#catalogmeta");
+    const directoryBody = document.querySelector("#directory tbody");
+    const studio = document.querySelector("#studio");
     const filename = document.querySelector("#filename");
     const filemeta = document.querySelector("#filemeta");
-    const home = document.querySelector("#home");
-    const workspace = document.querySelector("#workspace");
-    const back = document.querySelector("#back");
-    const dblist = document.querySelector("#dblist");
-    const homestatus = document.querySelector("#homestatus");
     const tablesEl = document.querySelector("#tables");
-    const pagesEl = document.querySelector("#pages");
-    const title = document.querySelector("#title");
+    const schemaBody = document.querySelector("#schema tbody");
+    const rowshead = document.querySelector("#rowshead");
+    const addrow = document.querySelector("#addrow");
     const grid = document.querySelector("#grid");
     const note = document.querySelector("#note");
     const status = document.querySelector("#status");
-    const addrow = document.querySelector("#addrow");
+    const result = document.querySelector("#result");
     const coldefs = document.querySelector("#coldefs");
+    let lib = { dir: "", current: "", databases: [] };
     let snap = null;
     let selected = "";
     let editing = -1;
 
     function setStatus(node, text, isError) {
       node.textContent = text || "";
-      node.classList.toggle("error", Boolean(isError));
+      node.classList.toggle("error", Boolean(isError) && Boolean(text));
     }
 
     function escapeHTML(text) {
-      return String(text).replace(/[&<>"]/g, (ch) => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;"
-      }[ch]));
+      return String(text).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[ch]));
     }
 
     function rowCount(n) {
       return n === 1 ? "1 row" : n + " rows";
+    }
+
+    function formatBytes(n) {
+      if (n < 1024) return n + " B";
+      if (n < 1048576) return (n / 1024).toFixed(n < 10240 ? 1 : 0) + " KB";
+      return (n / 1048576).toFixed(1) + " MB";
+    }
+
+    function tablePhrase(card) {
+      if (card.error) return card.error;
+      const n = (card.tables || []).length;
+      if (n === 0) return "No tables";
+      if (n === 1) return card.tables[0];
+      return n + " tables";
     }
 
     async function api(url, options) {
@@ -247,96 +348,122 @@
       return body;
     }
 
-    function showHome(lib) {
-      home.hidden = false;
-      workspace.hidden = true;
-      back.hidden = true;
-      filename.textContent = "ForgeDB";
-      document.title = "ForgeDB";
-      filemeta.textContent = lib.dir;
+    function renderRail() {
+      folder.textContent = lib.dir || "";
       dblist.replaceChildren();
-      if (!lib.names || lib.names.length === 0) {
+      if (!lib.databases || lib.databases.length === 0) {
         const empty = document.createElement("p");
+        empty.style.color = "var(--rail-muted)";
+        empty.style.margin = "0";
         empty.textContent = "No databases in this folder yet.";
         dblist.append(empty);
         return;
       }
-      for (const name of lib.names) {
+      for (const card of lib.databases) {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "db-button";
-        button.textContent = name;
-        button.addEventListener("click", () => useDatabase(name));
+        button.innerHTML = "<strong>" + escapeHTML(card.name) + "</strong><span>" + escapeHTML(tablePhrase(card) + " · " + formatBytes(card.bytes || 0)) + "</span>";
+        if (card.name === lib.current) button.setAttribute("aria-current", "true");
+        button.addEventListener("click", () => useDatabase(card.name));
         dblist.append(button);
       }
     }
 
-    async function loadHome() {
-      const lib = await api("/api/databases");
-      if (lib.current) {
-        await showDatabase();
+    function renderCatalog() {
+      catalog.hidden = false;
+      studio.hidden = true;
+      document.title = "ForgeDB";
+      const n = (lib.databases || []).length;
+      catalogmeta.textContent = n === 0 ? "This folder has no database files yet." : (n === 1 ? "1 database in this folder." : n + " databases in this folder.");
+      directoryBody.replaceChildren();
+      if (n === 0) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = '<td colspan="5">Create one from the side. It is saved as a .db file in this folder.</td>';
+        directoryBody.append(tr);
         return;
       }
-      showHome(lib);
+      for (const card of lib.databases) {
+        const tr = document.createElement("tr");
+        const tables = card.error ? card.error : ((card.tables || []).join(", ") || "No tables");
+        tr.innerHTML = "<td>" + escapeHTML(card.name) + "</td><td>" + escapeHTML(tables) + "</td><td class=\"num\">" + formatBytes(card.bytes || 0) + "</td><td class=\"num\">" + (card.pageCount || 0) + "</td><td></td>";
+        const open = document.createElement("button");
+        open.type = "button";
+        open.textContent = "Open";
+        open.disabled = Boolean(card.error);
+        open.addEventListener("click", () => useDatabase(card.name));
+        tr.lastElementChild.append(open);
+        directoryBody.append(tr);
+      }
+    }
+
+    async function refresh() {
+      lib = await api("/api/databases");
+      if (!lib.databases) lib.databases = [];
+      renderRail();
+      if (!lib.current) {
+        renderCatalog();
+        return;
+      }
+      await showStudio();
     }
 
     async function useDatabase(name) {
-      setStatus(homestatus, "", false);
+      setStatus(railstatus, "", false);
       try {
-        await api("/api/open", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name })
-        });
+        await api("/api/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
         selected = "";
-        await showDatabase();
+        editing = -1;
+        result.replaceChildren();
+        await refresh();
       } catch (err) {
-        setStatus(homestatus, err.message, true);
+        setStatus(railstatus, err.message, true);
       }
     }
 
     document.querySelector("#newdb").addEventListener("submit", async (event) => {
       event.preventDefault();
       const name = document.querySelector("#dbname").value.trim();
-      setStatus(homestatus, "", false);
+      setStatus(railstatus, "", false);
       try {
-        await api("/api/databases", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name })
-        });
+        await api("/api/databases", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
         document.querySelector("#dbname").value = "";
         selected = "";
-        await showDatabase();
+        await refresh();
       } catch (err) {
-        setStatus(homestatus, err.message, true);
+        setStatus(railstatus, err.message, true);
       }
     });
 
-    back.addEventListener("click", async () => {
+    document.querySelector("#back").addEventListener("click", async () => {
       await api("/api/close", { method: "POST" });
-      showHome(await api("/api/databases"));
+      selected = "";
+      result.replaceChildren();
+      setStatus(status, "", false);
+      await refresh();
     });
 
-    async function showDatabase() {
-      home.hidden = true;
-      workspace.hidden = false;
-      back.hidden = false;
+    async function showStudio() {
+      catalog.hidden = true;
+      studio.hidden = false;
       snap = await api("/api/inspect");
       if (!snap.tables) snap.tables = [];
-      const base = snap.path.split(/[\\/]/).pop().replace(/\.db$/, "");
+      const base = snap.path.split(/[\\/]/).pop().replace(/\.db$/i, "");
       filename.textContent = base;
       document.title = base;
-      const free = snap.freeHead === 0 ? "no free pages" : "free list starts at page " + snap.freeHead;
-      filemeta.textContent = snap.pageCount + " pages · " + free + " · next log sequence " + snap.nextLSN;
+      const tables = snap.tables.length === 1 ? "1 table" : snap.tables.length + " tables";
+      const card = (lib.databases || []).find((item) => item.name === base);
+      const size = card ? formatBytes(card.bytes || 0) : formatBytes(snap.pageCount * (snap.pageSize || 4096));
+      const pages = snap.pageCount === 1 ? "1 page" : snap.pageCount + " pages";
+      filemeta.textContent = tables + " · " + size + " · " + pages;
       if (selected && !snap.tables.some((table) => table.name === selected)) selected = "";
       if (!selected && snap.tables.length > 0) selected = snap.tables[0].name;
       renderTables();
-      renderPages();
+      renderSchema();
       if (selected) await openTable(selected);
       else {
         addrow.hidden = true;
-        title.textContent = "Rows";
+        rowshead.textContent = "Rows";
         grid.innerHTML = "";
         note.textContent = "Create a table, then add rows to it.";
       }
@@ -344,32 +471,39 @@
 
     function renderTables() {
       tablesEl.replaceChildren();
+      if (snap.tables.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "lead";
+        empty.textContent = "No tables yet.";
+        tablesEl.append(empty);
+        return;
+      }
       for (const table of snap.tables) {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "table-button";
-        button.innerHTML = "<strong>" + escapeHTML(table.name) + "</strong><span>" + escapeHTML(table.primaryKey) + " key</span>";
+        button.innerHTML = "<strong>" + escapeHTML(table.name) + "</strong><span>" + escapeHTML(table.primaryKey) + " key · " + table.columns.length + " columns</span>";
         if (table.name === selected) button.setAttribute("aria-current", "true");
-        button.addEventListener("click", () => openTable(table.name));
+        button.addEventListener("click", () => { result.replaceChildren(); openTable(table.name); });
         tablesEl.append(button);
       }
     }
 
-    function renderPages() {
-      pagesEl.replaceChildren();
-      const current = snap.tables.find((table) => table.name === selected);
-      for (const page of snap.pages || []) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "page-button";
-        if (current && (page.id === current.header || page.id === current.index)) button.classList.add("mark");
-        button.innerHTML = "<strong>" + page.id + "</strong><small>" + escapeHTML(page.kind) + "</small>";
-        button.title = "Page " + page.id + ", " + page.kind;
-        button.addEventListener("click", () => {
-          const owner = snap.tables.find((table) => table.header === page.id || table.index === page.id);
-          if (owner) openTable(owner.name);
-        });
-        pagesEl.append(button);
+    function renderSchema() {
+      schemaBody.replaceChildren();
+      if (snap.tables.length === 0) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = '<td colspan="4">No tables yet.</td>';
+        schemaBody.append(tr);
+        return;
+      }
+      for (const table of snap.tables) {
+        for (const col of table.columns) {
+          const tr = document.createElement("tr");
+          if (table.name === selected) tr.className = "here";
+          tr.innerHTML = "<td>" + escapeHTML(table.name) + "</td><td>" + escapeHTML(col.name) + "</td><td>" + escapeHTML(col.type) + "</td><td>" + (col.primary ? "primary" : "") + "</td>";
+          schemaBody.append(tr);
+        }
       }
     }
 
@@ -388,9 +522,7 @@
       coldefs.replaceChildren(columnLine("id", "INTEGER", true), columnLine("name", "TEXT", false));
     }
     resetColumns();
-    document.querySelector("#addcol").addEventListener("click", () => {
-      coldefs.append(columnLine("", "TEXT", false));
-    });
+    document.querySelector("#addcol").addEventListener("click", () => coldefs.append(columnLine("", "TEXT", false)));
 
     document.querySelector("#newtable").addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -401,16 +533,12 @@
       }));
       try {
         const name = document.querySelector("#tablename").value.trim();
-        await api("/api/tables", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, columns })
-        });
+        await api("/api/tables", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, columns }) });
         document.querySelector("#tablename").value = "";
         resetColumns();
         selected = name;
+        await refresh();
         setStatus(status, "Created " + name, false);
-        await showDatabase();
       } catch (err) {
         setStatus(status, err.message, true);
       }
@@ -443,16 +571,21 @@
       return wrap;
     }
 
-    function readValues(form) {
-      return valuesFrom(form);
+    function valuesFrom(root) {
+      return [...root.querySelectorAll("input[data-type]")].map((input) => {
+        const nil = input.parentElement.querySelector(".isnull");
+        if (nil && nil.checked) return { null: true };
+        if (input.dataset.type === "INTEGER") {
+          if (input.value.trim() === "") return { null: true };
+          return { int: Number(input.value) };
+        }
+        return { text: input.value };
+      });
     }
 
     function buildAddForm(table) {
       addrow.hidden = false;
       addrow.replaceChildren();
-      const legend = document.createElement("span");
-      legend.textContent = "Add a row";
-      addrow.append(legend);
       for (const col of table.columns) addrow.append(valueControl(col));
       const button = document.createElement("button");
       button.className = "primary";
@@ -464,39 +597,30 @@
     async function openTable(name) {
       editing = -1;
       selected = name;
-      snap = await api("/api/inspect");
-      if (!snap.tables) snap.tables = [];
-      const free = snap.freeHead === 0 ? "no free pages" : "free list starts at page " + snap.freeHead;
-      filemeta.textContent = snap.pageCount + " pages · " + free + " · next log sequence " + snap.nextLSN;
       renderTables();
-      renderPages();
+      renderSchema();
       const body = await api("/api/rows?table=" + encodeURIComponent(name));
       const table = snap.tables.find((item) => item.name === name);
-      title.textContent = name;
+      rowshead.textContent = name;
       note.textContent = body.rows.length === 200 ? "Showing the first 200 rows." : rowCount(body.rows.length);
       buildAddForm(table);
       drawRows(table, body.rows);
-      setStatus(status, "", false);
     }
 
     function drawRows(table, rows) {
       const head = table.columns.map((col) => "<th>" + escapeHTML(col.name) + "</th>").join("") + "<th></th>";
       const body = rows.map((row, index) => {
-        if (editing === index) return editRow(table, row, index);
+        if (editing === index) return editRow(table, row);
         const cells = row.map((value, i) => {
           const nil = value === null || value === undefined;
           const cls = nil ? "nil" : (table.columns[i].type === "INTEGER" ? "num" : "");
           return "<td class=\"" + cls + "\">" + escapeHTML(nil ? "NULL" : String(value)) + "</td>";
         }).join("");
-        return "<tr data-row=\"" + index + "\">" + cells +
-          "<td class=\"actions\"><button type=\"button\" data-edit=\"" + index + "\">Edit</button> <button type=\"button\" data-delete=\"" + index + "\">Delete</button></td></tr>";
+        return "<tr>" + cells + "<td><button type=\"button\" data-edit=\"" + index + "\">Edit</button> <button type=\"button\" data-delete=\"" + index + "\">Delete</button></td></tr>";
       }).join("");
-      grid.innerHTML = "<thead><tr>" + head + "</tr></thead><tbody>" + body + "</tbody>";
+      grid.innerHTML = "<thead><tr>" + head + "</tr></thead><tbody>" + (body || "<tr><td colspan=\"" + (table.columns.length + 1) + "\">No rows yet.</td></tr>") + "</tbody>";
       grid.querySelectorAll("[data-edit]").forEach((button) => {
-        button.addEventListener("click", () => {
-          editing = Number(button.dataset.edit);
-          drawRows(table, rows);
-        });
+        button.addEventListener("click", () => { editing = Number(button.dataset.edit); drawRows(table, rows); });
       });
       grid.querySelectorAll("[data-delete]").forEach((button) => {
         button.addEventListener("click", () => removeRow(table, rows[Number(button.dataset.delete)]));
@@ -504,10 +628,7 @@
       const save = grid.querySelector("[data-save]");
       if (save) {
         save.addEventListener("click", () => saveRow(table, rows[editing], valuesFrom(save.closest("tr"))));
-        grid.querySelector("[data-cancel]").addEventListener("click", () => {
-          editing = -1;
-          drawRows(table, rows);
-        });
+        grid.querySelector("[data-cancel]").addEventListener("click", () => { editing = -1; drawRows(table, rows); });
       }
     }
 
@@ -515,22 +636,10 @@
       const cells = table.columns.map((col, i) => {
         const value = row[i];
         const nil = value === null || value === undefined;
-        const box = col.primary ? "" : '<label class="nullbox"><input class="isnull" type="checkbox"' + (nil ? " checked" : "") + "> Null</label>";
+        const box = col.primary ? "" : '<label class="nullbox"><input class="isnull" type="checkbox"' + (nil ? " checked" : "") + "><span>Null</span></label>";
         return "<td><input data-type=\"" + col.type + "\" value=\"" + escapeHTML(nil ? "" : String(value)) + "\" aria-label=\"" + escapeHTML(col.name) + "\">" + box + "</td>";
       }).join("");
-      return "<tr class=\"editing\">" + cells + "<td class=\"actions\"><button type=\"button\" data-save>Save</button> <button type=\"button\" data-cancel>Cancel</button></td></tr>";
-    }
-
-    function valuesFrom(root) {
-      return [...root.querySelectorAll("input[data-type]")].map((input) => {
-        const nil = input.parentElement.querySelector(".isnull");
-        if (nil && nil.checked) return { null: true };
-        if (input.dataset.type === "INTEGER") {
-          if (input.value.trim() === "") return { null: true };
-          return { int: Number(input.value) };
-        }
-        return { text: input.value };
-      });
+      return "<tr class=\"here\">" + cells + "<td><button type=\"button\" data-save>Save</button> <button type=\"button\" data-cancel>Cancel</button></td></tr>";
     }
 
     function keyLiteral(table, value) {
@@ -578,7 +687,7 @@
         await api("/api/rows", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ table: table.name, values: readValues(addrow) })
+          body: JSON.stringify({ table: table.name, values: valuesFrom(addrow) })
         });
         await openTable(table.name);
         setStatus(status, "Added the row", false);
@@ -599,15 +708,14 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ statement })
         });
-        await showDatabase();
+        await refresh();
         if (Array.isArray(body.columns)) {
-          title.textContent = "Statement result";
-          note.textContent = rowCount(body.rows.length);
           const head = body.columns.map((name) => "<th>" + escapeHTML(name) + "</th>").join("");
-          const rows = body.rows.map((row) => "<tr>" + row.map((value) => "<td>" + escapeHTML(value === null ? "NULL" : String(value)) + "</td>").join("") + "</tr>").join("");
-          grid.innerHTML = "<thead><tr>" + head + "</tr></thead><tbody>" + rows + "</tbody>";
-          addrow.hidden = true;
+          const rows = (body.rows || []).map((row) => "<tr>" + row.map((value) => "<td>" + escapeHTML(value === null ? "NULL" : String(value)) + "</td>").join("") + "</tr>").join("");
+          result.innerHTML = "<div class=\"scroll\"><table><thead><tr>" + head + "</tr></thead><tbody>" + rows + "</tbody></table></div>";
+          setStatus(status, rowCount((body.rows || []).length), false);
         } else {
+          result.replaceChildren();
           setStatus(status, "changed " + body.changed, false);
         }
       } catch (err) {
@@ -617,7 +725,7 @@
       }
     });
 
-    loadHome().catch((err) => setStatus(homestatus, err.message, true));
+    refresh().catch((err) => setStatus(railstatus, err.message, true));
   </script>
 </body>
 </html>
